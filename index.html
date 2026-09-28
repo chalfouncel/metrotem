@@ -6,7 +6,7 @@
     <title>Medidor de Tapetes</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-900 text-white h-screen flex flex-col p-4 font-sans overflow-hidden">
+<body class="bg-gray-900 text-white min-h-screen flex flex-col p-4 font-sans overflow-x-hidden">
 
     <!-- Cabeçalho -->
     <div class="w-full max-w-md mx-auto pt-2 pb-4 border-b border-gray-800 mb-4 text-center shrink-0">
@@ -15,7 +15,7 @@
     </div>
 
     <!-- Tela 1: Botão de Câmera -->
-    <div id="tela-camera" class="flex flex-col items-center justify-center flex-1 w-full max-w-md mx-auto">
+    <div id="tela-camera" class="flex flex-col items-center justify-center flex-1 w-full max-w-md mx-auto mt-10">
         <label class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-5 px-8 rounded-2xl shadow-lg cursor-pointer w-full text-center transition-all flex items-center justify-center gap-3">
             <span class="text-xl">📸</span>
             <span class="text-lg">Abrir Câmera</span>
@@ -24,7 +24,7 @@
     </div>
 
     <!-- Tela 2: Foto carregada -->
-    <div id="tela-foto" class="hidden flex-col items-center w-full max-w-md mx-auto h-full flex-1 min-h-0">
+    <div id="tela-foto" class="hidden flex-col items-center w-full max-w-md mx-auto flex-1">
         
         <!-- Controle de Zoom -->
         <div class="flex items-center gap-3 mb-4 w-full bg-gray-800 p-3 rounded-xl shadow-md border border-gray-700 shrink-0">
@@ -33,12 +33,12 @@
             <span id="zoomValor" class="text-sm font-bold w-12 text-right text-blue-400">100%</span>
         </div>
 
-        <!-- Área da Foto com rolagem nativa para permitir "arrastar" -->
-        <div id="containerScroll" class="w-full flex-1 bg-black rounded-lg overflow-auto border-2 border-gray-700 shadow-2xl relative mb-4">
+        <!-- Área da Foto com altura fixa para não sumir -->
+        <div id="containerScroll" class="w-full h-[60vh] max-h-[500px] bg-black rounded-lg overflow-auto border-2 border-gray-700 shadow-2xl relative mb-4">
             <!-- Div que estica conforme o zoom -->
             <div id="containerImagem" class="relative w-full origin-top-left">
                 <img id="imagemCarregada" class="w-full h-auto block pointer-events-none" alt="Foto tirada">
-                <!-- Canvas para os desenhos (sem touch-none para permitir rolagem) -->
+                <!-- Canvas para os desenhos -->
                 <canvas id="camadaDesenho" class="absolute top-0 left-0 w-full h-full cursor-crosshair"></canvas>
             </div>
         </div>
@@ -66,13 +66,10 @@
         const telaFoto = document.getElementById('tela-foto');
         const imagemCarregada = document.getElementById('imagemCarregada');
         
-        // Elementos de Zoom
         const sliderZoom = document.getElementById('sliderZoom');
         const zoomValor = document.getElementById('zoomValor');
         const containerImagem = document.getElementById('containerImagem');
-        const containerScroll = document.getElementById('containerScroll');
         
-        // Botões
         const btnTirarOutra = document.getElementById('btnTirarOutra');
         const btnMarcar = document.getElementById('btnMarcar');
         const btnFinalizar = document.getElementById('btnFinalizar');
@@ -86,7 +83,6 @@
         let marcacaoAtiva = false;
         let marcacaoFinalizada = false;
 
-        // Lógica de Zoom
         function atualizarZoom() {
             const zoom = sliderZoom.value;
             zoomValor.innerText = zoom + '%';
@@ -94,37 +90,38 @@
         }
         sliderZoom.addEventListener('input', atualizarZoom);
 
-        // Ajusta a resolução base quando a foto carrega
-        imagemCarregada.onload = function() {
-            // Reseta o zoom para medir o tamanho original corretamente
-            sliderZoom.value = 100;
-            atualizarZoom();
-            
-            setTimeout(() => {
-                canvas.width = imagemCarregada.clientWidth;
-                canvas.height = imagemCarregada.clientHeight;
-                desenharPontos();
-            }, 50);
-        }
-
-        // Quando escolhe/tira a foto
+        // 1. O usuário escolhe a foto
         inputFoto.addEventListener('change', function(event) {
             const arquivo = event.target.files[0];
             if (arquivo) {
                 const leitor = new FileReader();
                 leitor.onload = function(e) {
+                    // Apenas carrega a imagem em memória
                     imagemCarregada.src = e.target.result;
-                    telaCamera.classList.add('hidden');
-                    telaCamera.classList.remove('flex');
-                    telaFoto.classList.remove('hidden');
-                    telaFoto.classList.add('flex');
-                    resetarMarcacoes();
                 }
                 leitor.readAsDataURL(arquivo);
             }
         });
 
-        // Botões de Ação (Tirar outra, Iniciar, Finalizar, Limpar)
+        // 2. Quando a foto termina de carregar, trocamos de tela (evita sumir a foto)
+        imagemCarregada.onload = function() {
+            telaCamera.classList.add('hidden');
+            telaCamera.classList.remove('flex');
+            telaFoto.classList.remove('hidden');
+            telaFoto.classList.add('flex');
+            
+            sliderZoom.value = 100;
+            atualizarZoom();
+            resetarMarcacoes();
+            
+            // Um pequeno delay para garantir que a tela renderizou
+            setTimeout(() => {
+                canvas.width = imagemCarregada.clientWidth;
+                canvas.height = imagemCarregada.clientHeight;
+                desenharPontos();
+            }, 100);
+        }
+
         btnTirarOutra.addEventListener('click', function() {
             inputFoto.value = '';
             telaCamera.classList.remove('hidden');
@@ -141,7 +138,7 @@
             btnTirarOutra.classList.add('hidden');
             btnFinalizar.classList.remove('hidden');
             btnLimpar.classList.remove('hidden');
-            instrucoes.innerText = "Zoom e arraste p/ detalhe. Toque p/ marcar.";
+            instrucoes.innerText = "De zoom e arraste. Toque para marcar.";
             instrucoes.classList.add('text-yellow-400');
         });
 
@@ -156,4 +153,92 @@
             btnFinalizar.classList.add('hidden');
             btnTirarOutra.classList.remove('hidden'); 
             
-            // Volta
+            sliderZoom.value = 100;
+            atualizarZoom();
+            
+            instrucoes.innerText = "Área finalizada! Pronta para cálculo.";
+            instrucoes.classList.remove('text-yellow-400');
+            instrucoes.classList.add('text-green-400');
+        });
+
+        btnLimpar.addEventListener('click', function() {
+            resetarMarcacoes();
+            marcacaoAtiva = true;
+            btnMarcar.classList.add('hidden');
+            btnTirarOutra.classList.add('hidden');
+            btnFinalizar.classList.remove('hidden');
+            btnLimpar.classList.remove('hidden');
+            instrucoes.innerText = "De zoom e arraste. Toque para marcar.";
+            instrucoes.classList.add('text-yellow-400');
+        });
+
+        // A mágica de marcar o ponto exato mesmo com o zoom
+        canvas.addEventListener('click', function(event) {
+            if (!marcacaoAtiva) return;
+
+            const rect = canvas.getBoundingClientRect();
+            
+            const clickX = event.clientX - rect.left;
+            const clickY = event.clientY - rect.top;
+
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+
+            const x = clickX * scaleX;
+            const y = clickY * scaleY;
+
+            pontos.push({ x, y });
+            desenharPontos();
+        });
+
+        function desenharPontos() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (pontos.length > 1) {
+                ctx.beginPath();
+                ctx.moveTo(pontos[0].x, pontos[0].y);
+                for (let i = 1; i < pontos.length; i++) {
+                    ctx.lineTo(pontos[i].x, pontos[i].y);
+                }
+                if (marcacaoFinalizada && pontos.length >= 3) {
+                    ctx.lineTo(pontos[0].x, pontos[0].y);
+                    ctx.fillStyle = 'rgba(59, 130, 246, 0.3)';
+                    ctx.fill();
+                }
+                ctx.strokeStyle = '#3b82f6';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+
+            pontos.forEach((p, index) => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 3, 0, 2 * Math.PI); 
+                ctx.fillStyle = '#ef4444';
+                ctx.fill();
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 12px Arial';
+                ctx.fillText(index + 1, p.x + 6, p.y - 6);
+            });
+        }
+
+        function resetarMarcacoes() {
+            pontos = [];
+            marcacaoAtiva = false;
+            marcacaoFinalizada = false;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            btnMarcar.classList.remove('hidden');
+            btnTirarOutra.classList.remove('hidden');
+            btnFinalizar.classList.add('hidden');
+            btnLimpar.classList.add('hidden');
+            
+            instrucoes.innerText = "Foto tirada! Clique em Marcar Pontos.";
+            instrucoes.classList.remove('text-yellow-400', 'text-green-400');
+        }
+    </script>
+</body>
+</html>
