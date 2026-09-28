@@ -281,23 +281,33 @@
                 });
             }
 
-            // Medidas sobre as linhas
+            // --- MELHORIA DA SOBREPOSIÇÃO DOS VALORES NA FOTO ---
             if (tapeteFinalizado && infoLados.length > 0) {
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 
                 infoLados.forEach(lado => {
-                    let meioX = (lado.ponto1.x + lado.ponto2.x) / 2;
-                    let meioY = (lado.ponto1.y + lado.ponto2.y) / 2;
-                    let texto = lado.medida + 'm';
+                    // Calcula quantos pixels a linha tem na tela
+                    let distPx = Math.sqrt(Math.pow(lado.ponto2.x - lado.ponto1.x, 2) + Math.pow(lado.ponto2.y - lado.ponto1.y, 2));
+                    
+                    // SÓ DESENHA se a linha for grandinha (maior que 45 pixels). 
+                    // Se for curtinha, não desenha pra não virar um borrão na imagem!
+                    if (distPx > 45) {
+                        let meioX = (lado.ponto1.x + lado.ponto2.x) / 2;
+                        let meioY = (lado.ponto1.y + lado.ponto2.y) / 2;
+                        let texto = lado.medida + 'm';
 
-                    ctx.font = 'bold 12px Arial';
-                    let textWidth = ctx.measureText(texto).width;
-                    ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
-                    ctx.fillRect(meioX - textWidth/2 - 4, meioY - 10, textWidth + 8, 20);
+                        ctx.font = 'bold 12px Arial';
+                        let textWidth = ctx.measureText(texto).width;
+                        
+                        // Fundo preto um pouco mais suave
+                        ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+                        ctx.fillRect(meioX - textWidth/2 - 4, meioY - 10, textWidth + 8, 20);
 
-                    ctx.fillStyle = '#4ade80';
-                    ctx.fillText(texto, meioX, meioY);
+                        // Texto verde
+                        ctx.fillStyle = '#4ade80';
+                        ctx.fillText(texto, meioX, meioY);
+                    }
                 });
             }
         }
@@ -342,6 +352,7 @@
                     ponto2: p2
                 });
 
+                // Aqui na tela, a setinha (➔) funciona bem porque é HTML puro
                 let htmlLado = `<div><span class="font-bold text-green-400">Pt ${numP1} ➔ Pt ${numP2}:</span> ${distM}m</div>`;
                 listaMedidas.innerHTML += htmlLado;
             }
@@ -349,17 +360,15 @@
             painelResultado.classList.remove('hidden');
         }
 
-        // --- GERAÇÃO DO PDF CORRIGIDA ---
+        // --- GERAÇÃO DO PDF ---
         btnPDF.addEventListener('click', function() {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
 
-            // Título
             doc.setFontSize(22);
             doc.setFont("helvetica", "bold");
             doc.text("Medição de Tapete", 105, 20, null, null, "center");
 
-            // Junta a foto e os desenhos
             const canvasTemp = document.createElement('canvas');
             canvasTemp.width = canvas.width;
             canvasTemp.height = canvas.height;
@@ -370,36 +379,31 @@
 
             const fotoFinal = canvasTemp.toDataURL('image/jpeg', 0.8);
             
-            // --- A MÁGICA PRA NÃO SOBREPOR O TEXTO ---
-            // Definimos uma altura e largura MÁXIMA para a foto na página A4
             const maxLarguraImg = 190;
-            const maxAlturaImg = 140; // Garante quase meia página livre para os textos e rodapé
+            const maxAlturaImg = 140; 
             
             const proporcao = canvasTemp.height / canvasTemp.width;
             
             let larguraImgPDF = maxLarguraImg;
             let alturaImgPDF = maxLarguraImg * proporcao;
 
-            // Se a imagem for muito "alta" (foto em pé do celular), limitamos a altura dela
             if (alturaImgPDF > maxAlturaImg) {
                 alturaImgPDF = maxAlturaImg;
                 larguraImgPDF = maxAlturaImg / proporcao;
             }
 
-            const margemX = (210 - larguraImgPDF) / 2; // Centraliza a imagem na página
+            const margemX = (210 - larguraImgPDF) / 2; 
 
-            // Insere a imagem respeitando os novos limites
             doc.addImage(fotoFinal, 'JPEG', margemX, 30, larguraImgPDF, alturaImgPDF);
 
-            // Começa a escrever logo abaixo da foto
             let linhaY = 30 + alturaImgPDF + 20;
             
             doc.setFontSize(16);
-            doc.setTextColor(22, 163, 74); // Verde bonito
+            doc.setTextColor(22, 163, 74); 
             doc.text(`Área Total do Tapete: ${valorArea.innerText}`, 105, linhaY, null, null, "center");
             
             linhaY += 15;
-            doc.setTextColor(0, 0, 0); // Preto
+            doc.setTextColor(0, 0, 0); 
             doc.setFontSize(14);
             doc.setFont("helvetica", "bold");
             doc.text("Medidas de cada lado (Distância entre pontos):", 20, linhaY);
@@ -408,19 +412,17 @@
             doc.setFontSize(12);
             doc.setFont("helvetica", "normal");
             
-            // Lista os pontos exatos
+            // --- CORREÇÃO DO TEXTO DO PDF (Tirada a setinha para não bugar a fonte) ---
             infoLados.forEach(lado => {
-                doc.text(`• Ponto ${lado.num1} ➔ Ponto ${lado.num2} :  ${lado.medida} metros`, 25, linhaY);
+                doc.text(`• Ponto ${lado.num1} ao Ponto ${lado.num2} :  ${lado.medida} metros`, 25, linhaY);
                 linhaY += 8;
                 
-                // Se o tapete tiver MUITOS pontos, cria uma página 2 automática pra não sobrepor
                 if (linhaY > 275) {
                     doc.addPage();
                     linhaY = 20;
                 }
             });
 
-            // Rodapé
             doc.setFontSize(10);
             doc.setTextColor(150, 150, 150);
             doc.text("Gerado por Medidor de Tapetes Automático", 105, 290, null, null, "center");
