@@ -19,6 +19,7 @@
         <label class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-5 px-8 rounded-2xl shadow-lg cursor-pointer w-full text-center transition-all flex items-center justify-center gap-3">
             <span class="text-xl">📸</span>
             <span class="text-lg">Abrir Câmera</span>
+            <!-- Capture environment garante o uso da câmera traseira de melhor qualidade no celular -->
             <input type="file" accept="image/*" capture="environment" id="inputFoto" class="hidden">
         </label>
     </div>
@@ -44,7 +45,6 @@
             <h2 class="text-green-300 font-bold text-sm uppercase tracking-wide">Área Total</h2>
             <p id="valorArea" class="text-3xl font-extrabold text-white mt-1 mb-2">0.00 m²</p>
             <div id="listaMedidas" class="text-sm text-gray-200 grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-green-700 text-left pl-2">
-                <!-- Medidas entram aqui -->
             </div>
         </div>
 
@@ -53,7 +53,7 @@
             <button id="btnTirarOutra" class="flex-1 min-w-[140px] bg-gray-700 active:bg-gray-600 text-white py-3 rounded-xl font-semibold transition-colors">
                 Nova Foto
             </button>
-            <button id="btnMarcarCartao" class="flex-1 min-w-[140px] bg-purple-600 active:bg-purple-500 text-white py-3 rounded-xl font-bold shadow-lg transition-colors">
+            <button id="btnMarcarCartao" class="flex-1 min-w-[140px] bg-red-600 active:bg-red-500 text-white py-3 rounded-xl font-bold shadow-lg transition-colors">
                 1º Marcar Cartão
             </button>
             <button id="btnMarcarTapete" class="hidden flex-1 min-w-[140px] bg-blue-600 active:bg-blue-500 text-white py-3 rounded-xl font-bold shadow-lg transition-colors">
@@ -101,7 +101,6 @@
         let modoAtual = null;
         let tapeteFinalizado = false;
         
-        // Área real do cartão de crédito ID-1 (8.56cm x 5.40cm)
         const AREA_CARTAO_CM2 = 46.224; 
         let cmPorPixelGlobal = 0;
         let infoLados = []; 
@@ -111,8 +110,8 @@
             zoomValor.innerText = zoom + '%';
             containerImagem.style.width = zoom + '%';
             
-            // REDESENHA TUDO AO DAR ZOOM (Para os pontos ficarem finos)
-            desenharTudo();
+            // Sempre que der zoom, o navegador redesenha a tela com perfeição
+            requestAnimationFrame(desenharTudo);
         }
         sliderZoom.addEventListener('input', atualizarZoom);
 
@@ -138,8 +137,9 @@
             resetarMarcacoes();
             
             setTimeout(() => {
-                canvas.width = imagemCarregada.clientWidth;
-                canvas.height = imagemCarregada.clientHeight;
+                // MÁGICA DA RESOLUÇÃO: Puxa a resolução original da foto (Full HD/4K)
+                canvas.width = imagemCarregada.naturalWidth;
+                canvas.height = imagemCarregada.naturalHeight;
                 desenharTudo();
             }, 100);
         }
@@ -160,7 +160,7 @@
             btnTirarOutra.classList.add('hidden');
             btnLimpar.classList.remove('hidden');
             instrucoes.innerText = "Marque os 4 cantos do cartão (em círculo).";
-            instrucoes.classList.add('text-purple-400');
+            instrucoes.classList.add('text-red-400');
             instrucoes.classList.remove('text-gray-400', 'text-yellow-400');
         });
 
@@ -170,7 +170,7 @@
             btnMarcarTapete.classList.add('hidden');
             btnFinalizar.classList.remove('hidden');
             instrucoes.innerText = "Agora marque os cantos do tapete (em círculo).";
-            instrucoes.classList.remove('text-purple-400');
+            instrucoes.classList.remove('text-red-400');
             instrucoes.classList.add('text-yellow-400');
         });
 
@@ -183,10 +183,7 @@
             tapeteFinalizado = true;
             
             calcularMedidas(); 
-            
-            // Força o zoom para 100% para ver tudo e gerar PDF bonitinho
-            sliderZoom.value = 100;
-            atualizarZoom(); 
+            desenharTudo();
             
             btnFinalizar.classList.add('hidden');
             btnTirarOutra.classList.remove('hidden'); 
@@ -205,12 +202,13 @@
             if (!modoAtual) return;
 
             const rect = canvas.getBoundingClientRect();
-            const clickX = event.clientX - rect.left;
-            const clickY = event.clientY - rect.top;
+            
+            // Converte o clique na tela para as coordenadas gigantes da foto real
             const scaleX = canvas.width / rect.width;
             const scaleY = canvas.height / rect.height;
-            const x = clickX * scaleX;
-            const y = clickY * scaleY;
+            
+            const x = (event.clientX - rect.left) * scaleX;
+            const y = (event.clientY - rect.top) * scaleY;
 
             if (modoAtual === 'cartao') {
                 if (pontosCartao.length < 4) {
@@ -220,7 +218,7 @@
                         modoAtual = null;
                         btnMarcarTapete.classList.remove('hidden');
                         instrucoes.innerText = "Cartão marcado! Clique em '2º Marcar Tapete'.";
-                        instrucoes.classList.replace('text-purple-400', 'text-white');
+                        instrucoes.classList.replace('text-red-400', 'text-white');
                     }
                 }
             } else if (modoAtual === 'tapete') {
@@ -229,7 +227,6 @@
             }
         });
 
-        // Função universal para calcular Área de qualquer formato
         function calcularAreaPoligono(pontos) {
             let area = 0;
             let j = pontos.length - 1;
@@ -241,19 +238,23 @@
         }
 
         function desenharTudo() {
+            if(canvas.width === 0) return;
+            
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // MÁGICA DO ZOOM: Pega o valor atual do zoom (ex: 2.0 para 200%)
-            const fatorZoom = sliderZoom.value / 100;
+            const rect = canvas.getBoundingClientRect();
             
-            // Tamanhos dinâmicos que diminuem quando o zoom aumenta (mantendo o tamanho visual fixo na tela)
-            const raioPonto = 4 / fatorZoom;
-            const espessuraLinhaFina = 1.5 / fatorZoom;
-            const espessuraLinhaGrossa = 2.5 / fatorZoom;
-            const tamanhoFonte = 12 / fatorZoom;
-            const paddingTexto = 4 / fatorZoom;
+            // Essa matemática garante que os pontos tenham o mesmo tamanho VISUAL na sua tela,
+            // não importa se a foto tem 1000px ou 5000px, e não importa o Zoom.
+            const multiplicador = canvas.width / rect.width;
+            
+            const raioPonto = 5 * multiplicador;
+            const espessuraFina = 2 * multiplicador;
+            const espessuraGrossa = 3.5 * multiplicador;
+            const tamanhoFonte = 14 * multiplicador;
+            const paddingTexto = 6 * multiplicador;
 
-            // Desenha Cartão (Roxo) - Agora com 4 pontos
+            // --- 1. DESENHA O GABARITO (CARTÃO) EM VERMELHO ---
             if (pontosCartao.length > 0) {
                 if (pontosCartao.length > 1) {
                     ctx.beginPath();
@@ -261,27 +262,27 @@
                     for (let i = 1; i < pontosCartao.length; i++) {
                         ctx.lineTo(pontosCartao[i].x, pontosCartao[i].y);
                     }
-                    if (pontosCartao.length === 4) { // Fecha o retângulo do cartão
+                    if (pontosCartao.length === 4) { 
                         ctx.lineTo(pontosCartao[0].x, pontosCartao[0].y);
-                        ctx.fillStyle = 'rgba(168, 85, 247, 0.3)';
+                        ctx.fillStyle = 'rgba(239, 68, 68, 0.25)'; // Vermelho Transparente
                         ctx.fill();
                     }
-                    ctx.strokeStyle = '#a855f7'; 
-                    ctx.lineWidth = espessuraLinhaGrossa;
+                    ctx.strokeStyle = '#ef4444'; // Vermelho
+                    ctx.lineWidth = espessuraGrossa;
                     ctx.stroke();
                 }
                 pontosCartao.forEach((p, index) => {
                     ctx.beginPath();
                     ctx.arc(p.x, p.y, raioPonto, 0, 2 * Math.PI); 
-                    ctx.fillStyle = '#a855f7';
+                    ctx.fillStyle = '#ef4444';
                     ctx.fill();
                     ctx.strokeStyle = 'white';
-                    ctx.lineWidth = espessuraLinhaFina;
+                    ctx.lineWidth = espessuraFina;
                     ctx.stroke();
                 });
             }
 
-            // Desenha Tapete
+            // --- 2. DESENHA O TAPETE EM AZUL ---
             if (pontosTapete.length > 0) {
                 if (pontosTapete.length > 1) {
                     ctx.beginPath();
@@ -291,30 +292,30 @@
                     }
                     if (tapeteFinalizado && pontosTapete.length >= 3) {
                         ctx.lineTo(pontosTapete[0].x, pontosTapete[0].y);
-                        ctx.fillStyle = 'rgba(59, 130, 246, 0.3)';
+                        ctx.fillStyle = 'rgba(59, 130, 246, 0.25)';
                         ctx.fill();
                     }
-                    ctx.strokeStyle = '#3b82f6';
-                    ctx.lineWidth = espessuraLinhaGrossa;
+                    ctx.strokeStyle = '#3b82f6'; // Azul
+                    ctx.lineWidth = espessuraGrossa;
                     ctx.stroke();
                 }
 
                 pontosTapete.forEach((p, index) => {
                     ctx.beginPath();
                     ctx.arc(p.x, p.y, raioPonto, 0, 2 * Math.PI); 
-                    ctx.fillStyle = '#ef4444';
+                    ctx.fillStyle = '#3b82f6'; // Pontos azuis para destacar do vermelho
                     ctx.fill();
                     ctx.strokeStyle = 'white';
-                    ctx.lineWidth = espessuraLinhaFina;
+                    ctx.lineWidth = espessuraFina;
                     ctx.stroke();
                     
                     ctx.fillStyle = 'white';
                     ctx.font = `bold ${tamanhoFonte}px Arial`;
-                    ctx.fillText(index + 1, p.x + (raioPonto*2), p.y - (raioPonto*2));
+                    ctx.fillText(index + 1, p.x + (raioPonto*1.5), p.y - (raioPonto*1.5));
                 });
             }
 
-            // Medidas sobre as linhas (Oculta se for linha pequena demais)
+            // --- 3. MEDIDAS NOS LADOS DO TAPETE ---
             if (tapeteFinalizado && infoLados.length > 0) {
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
@@ -322,8 +323,8 @@
                 infoLados.forEach(lado => {
                     let distPx = Math.sqrt(Math.pow(lado.ponto2.x - lado.ponto1.x, 2) + Math.pow(lado.ponto2.y - lado.ponto1.y, 2));
                     
-                    // Condição para desenhar (ajustada com o zoom)
-                    if (distPx > (45 / fatorZoom)) {
+                    // Só desenha se a linha visual no celular for maior que 45 pixels
+                    if (distPx > (45 * multiplicador)) {
                         let meioX = (lado.ponto1.x + lado.ponto2.x) / 2;
                         let meioY = (lado.ponto1.y + lado.ponto2.y) / 2;
                         let texto = lado.medida + 'm';
@@ -331,12 +332,12 @@
                         ctx.font = `bold ${tamanhoFonte}px Arial`;
                         let textWidth = ctx.measureText(texto).width;
                         
-                        ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+                        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
                         ctx.fillRect(
                             meioX - textWidth/2 - paddingTexto, 
-                            meioY - tamanhoFonte, 
+                            meioY - tamanhoFonte * 0.8, 
                             textWidth + (paddingTexto*2), 
-                            tamanhoFonte * 2
+                            tamanhoFonte * 1.6
                         );
 
                         ctx.fillStyle = '#4ade80';
@@ -347,23 +348,16 @@
         }
 
         function calcularMedidas() {
-            // 1. Acha a área em pixels do cartão marcado
             const areaCartaoPx = calcularAreaPoligono(pontosCartao);
-            
-            // 2. Fator Escala de Área = Área Real (cm2) / Área em Pixels
             const escalaArea = AREA_CARTAO_CM2 / areaCartaoPx;
-            
-            // 3. Fator Escala Linear = Raiz Quadrada da escala de área (média de perspectiva)
             cmPorPixelGlobal = Math.sqrt(escalaArea);
 
-            // 4. Calcula Área do Tapete (Multiplica a área em px pelo fator de escala de área)
             const areaTapetePx = calcularAreaPoligono(pontosTapete);
             let areaEmCm2 = areaTapetePx * escalaArea;
             let areaEmM2 = areaEmCm2 / 10000;
             
             valorArea.innerText = areaEmM2.toFixed(2) + " m²";
 
-            // 5. Calcula as distâncias de cada lado
             infoLados = [];
             listaMedidas.innerHTML = ''; 
             
@@ -393,12 +387,8 @@
             painelResultado.classList.remove('hidden');
         }
 
-        // --- GERAÇÃO DO PDF ---
+        // --- GERAÇÃO DO PDF OTIMIZADA ---
         btnPDF.addEventListener('click', function() {
-            // Força o zoom pro 100% e redesenha pra foto do PDF não sair com linhas gigantes
-            sliderZoom.value = 100;
-            atualizarZoom();
-            
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
 
@@ -406,15 +396,22 @@
             doc.setFont("helvetica", "bold");
             doc.text("Medição de Tapete", 105, 20, null, null, "center");
 
+            // Evita criar uma imagem pesada demais e bugar o PDF no celular
+            const maxWidthPDF = 1200;
+            let scalePDF = 1;
+            if (canvas.width > maxWidthPDF) {
+                scalePDF = maxWidthPDF / canvas.width;
+            }
+
             const canvasTemp = document.createElement('canvas');
-            canvasTemp.width = canvas.width;
-            canvasTemp.height = canvas.height;
+            canvasTemp.width = canvas.width * scalePDF;
+            canvasTemp.height = canvas.height * scalePDF;
             const ctxTemp = canvasTemp.getContext('2d');
             
             ctxTemp.drawImage(imagemCarregada, 0, 0, canvasTemp.width, canvasTemp.height);
-            ctxTemp.drawImage(canvas, 0, 0);
+            ctxTemp.drawImage(canvas, 0, 0, canvasTemp.width, canvasTemp.height);
 
-            const fotoFinal = canvasTemp.toDataURL('image/jpeg', 0.8);
+            const fotoFinal = canvasTemp.toDataURL('image/jpeg', 0.7); // 70% quality
             
             const maxLarguraImg = 190;
             const maxAlturaImg = 140; 
@@ -484,7 +481,7 @@
             btnLimpar.classList.add('hidden');
             
             instrucoes.innerText = "Coloque o cartão ao lado e tire a foto.";
-            instrucoes.classList.remove('text-green-400', 'text-yellow-400', 'text-purple-400', 'text-white');
+            instrucoes.classList.remove('text-green-400', 'text-yellow-400', 'text-red-400', 'text-white');
             instrucoes.classList.add('text-gray-400');
         }
     </script>
