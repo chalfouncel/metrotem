@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Medidor de Tapetes</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Biblioteca que gera o PDF mágico -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body class="bg-gray-900 text-white min-h-screen flex flex-col p-4 font-sans overflow-x-hidden">
@@ -44,7 +43,7 @@
         <div id="painelResultado" class="hidden w-full bg-green-900 border-2 border-green-500 rounded-xl p-4 mb-4 text-center shadow-lg">
             <h2 class="text-green-300 font-bold text-sm uppercase tracking-wide">Área Total</h2>
             <p id="valorArea" class="text-3xl font-extrabold text-white mt-1 mb-2">0.00 m²</p>
-            <div id="listaMedidas" class="text-sm text-gray-200 grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-green-700 text-left pl-4">
+            <div id="listaMedidas" class="text-sm text-gray-200 grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-green-700 text-left pl-2">
                 <!-- As medidas dos lados entrarão aqui via Javascript -->
             </div>
         </div>
@@ -102,10 +101,9 @@
         let modoAtual = null;
         let tapeteFinalizado = false;
         
-        // Variaveis de Matemática
         const MEDIDA_CARTAO_CM = 8.56; 
         let cmPorPixelGlobal = 0;
-        let infoLados = []; // Guarda as medidas para usar no PDF e na tela
+        let infoLados = []; 
 
         function atualizarZoom() {
             const zoom = sliderZoom.value;
@@ -167,7 +165,7 @@
             tapeteFinalizado = false;
             btnMarcarTapete.classList.add('hidden');
             btnFinalizar.classList.remove('hidden');
-            instrucoes.innerText = "Agora marque os cantos do tapete em ordem (circulando).";
+            instrucoes.innerText = "Agora marque os cantos do tapete.";
             instrucoes.classList.remove('text-purple-400');
             instrucoes.classList.add('text-yellow-400');
         });
@@ -180,12 +178,12 @@
             modoAtual = null;
             tapeteFinalizado = true;
             
-            calcularMedidas(); // Calcula antes para o desenharTudo ter as medidas e plotar
+            calcularMedidas(); 
             desenharTudo(); 
             
             btnFinalizar.classList.add('hidden');
             btnTirarOutra.classList.remove('hidden'); 
-            btnPDF.classList.remove('hidden'); // MOSTRA O BOTAO PDF
+            btnPDF.classList.remove('hidden');
             
             sliderZoom.value = 100;
             atualizarZoom();
@@ -230,7 +228,7 @@
         function desenharTudo() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Desenha Cartão (Roxo)
+            // Desenha Cartão
             if (pontosCartao.length > 0) {
                 if (pontosCartao.length === 2) {
                     ctx.beginPath();
@@ -283,24 +281,21 @@
                 });
             }
 
-            // SE FINALIZOU, DESENHA AS MEDIDAS DOS LADOS EM CIMA DA LINHA
+            // Medidas sobre as linhas
             if (tapeteFinalizado && infoLados.length > 0) {
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 
                 infoLados.forEach(lado => {
-                    // Pega o meio da linha pra escrever a medida
                     let meioX = (lado.ponto1.x + lado.ponto2.x) / 2;
                     let meioY = (lado.ponto1.y + lado.ponto2.y) / 2;
                     let texto = lado.medida + 'm';
 
-                    // Desenha um fundo escuro pro texto ficar legível
-                    ctx.font = 'bold 13px Arial';
+                    ctx.font = 'bold 12px Arial';
                     let textWidth = ctx.measureText(texto).width;
-                    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
                     ctx.fillRect(meioX - textWidth/2 - 4, meioY - 10, textWidth + 8, 20);
 
-                    // Escreve o texto em verde
                     ctx.fillStyle = '#4ade80';
                     ctx.fillText(texto, meioX, meioY);
                 });
@@ -308,13 +303,11 @@
         }
 
         function calcularMedidas() {
-            // 1. Acha o cmPorPixel baseado no cartão
             const dx = pontosCartao[1].x - pontosCartao[0].x;
             const dy = pontosCartao[1].y - pontosCartao[0].y;
             const pixelsCartao = Math.sqrt(dx * dx + dy * dy);
             cmPorPixelGlobal = MEDIDA_CARTAO_CM / pixelsCartao;
 
-            // 2. Calcula Área Total
             let areaEmPixels = 0;
             let j = pontosTapete.length - 1;
             for (let i = 0; i < pontosTapete.length; i++) {
@@ -327,13 +320,12 @@
             
             valorArea.innerText = areaEmM2.toFixed(2) + " m²";
 
-            // 3. Calcula cada Lado
             infoLados = [];
-            listaMedidas.innerHTML = ''; // Limpa a lista na tela
+            listaMedidas.innerHTML = ''; 
             
             for (let i = 0; i < pontosTapete.length; i++) {
                 let p1 = pontosTapete[i];
-                let p2 = pontosTapete[(i + 1) % pontosTapete.length]; // O % liga o último com o primeiro
+                let p2 = pontosTapete[(i + 1) % pontosTapete.length]; 
                 
                 let numP1 = i + 1;
                 let numP2 = ((i + 1) % pontosTapete.length === 0) ? 1 : i + 2;
@@ -343,23 +335,22 @@
                 let distM = (distCm / 100).toFixed(2);
 
                 infoLados.push({
-                    nome: `Lado ${numP1} ao ${numP2}`,
+                    num1: numP1,
+                    num2: numP2,
                     medida: distM,
                     ponto1: p1,
                     ponto2: p2
                 });
 
-                // Adiciona na tela no painel verde
-                let htmlLado = `<div><span class="font-bold text-green-400">${numP1} ➔ ${numP2}:</span> ${distM}m</div>`;
+                let htmlLado = `<div><span class="font-bold text-green-400">Pt ${numP1} ➔ Pt ${numP2}:</span> ${distM}m</div>`;
                 listaMedidas.innerHTML += htmlLado;
             }
 
             painelResultado.classList.remove('hidden');
         }
 
-        // --- GERAÇÃO DO PDF ---
+        // --- GERAÇÃO DO PDF CORRIGIDA ---
         btnPDF.addEventListener('click', function() {
-            // Pega a biblioteca JS do PDF
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
 
@@ -368,7 +359,7 @@
             doc.setFont("helvetica", "bold");
             doc.text("Medição de Tapete", 105, 20, null, null, "center");
 
-            // Junta a Foto Real + Desenhos em uma imagem só pra por no PDF
+            // Junta a foto e os desenhos
             const canvasTemp = document.createElement('canvas');
             canvasTemp.width = canvas.width;
             canvasTemp.height = canvas.height;
@@ -379,41 +370,61 @@
 
             const fotoFinal = canvasTemp.toDataURL('image/jpeg', 0.8);
             
-            // Calcula tamanho da foto no papel A4
-            const larguraA4 = 190; // 210mm (A4) - margens
+            // --- A MÁGICA PRA NÃO SOBREPOR O TEXTO ---
+            // Definimos uma altura e largura MÁXIMA para a foto na página A4
+            const maxLarguraImg = 190;
+            const maxAlturaImg = 140; // Garante quase meia página livre para os textos e rodapé
+            
             const proporcao = canvasTemp.height / canvasTemp.width;
-            const alturaFotoPDF = larguraA4 * proporcao;
+            
+            let larguraImgPDF = maxLarguraImg;
+            let alturaImgPDF = maxLarguraImg * proporcao;
 
-            // Insere a foto no PDF
-            doc.addImage(fotoFinal, 'JPEG', 10, 30, larguraA4, alturaFotoPDF);
+            // Se a imagem for muito "alta" (foto em pé do celular), limitamos a altura dela
+            if (alturaImgPDF > maxAlturaImg) {
+                alturaImgPDF = maxAlturaImg;
+                larguraImgPDF = maxAlturaImg / proporcao;
+            }
 
-            // Escreve os dados numéricos abaixo da foto
-            let linhaY = 30 + alturaFotoPDF + 15;
+            const margemX = (210 - larguraImgPDF) / 2; // Centraliza a imagem na página
+
+            // Insere a imagem respeitando os novos limites
+            doc.addImage(fotoFinal, 'JPEG', margemX, 30, larguraImgPDF, alturaImgPDF);
+
+            // Começa a escrever logo abaixo da foto
+            let linhaY = 30 + alturaImgPDF + 20;
             
             doc.setFontSize(16);
-            doc.setTextColor(0, 100, 0); // Verde Escuro
-            doc.text(`Área Total: ${valorArea.innerText}`, 10, linhaY);
+            doc.setTextColor(22, 163, 74); // Verde bonito
+            doc.text(`Área Total do Tapete: ${valorArea.innerText}`, 105, linhaY, null, null, "center");
             
-            linhaY += 12;
+            linhaY += 15;
             doc.setTextColor(0, 0, 0); // Preto
             doc.setFontSize(14);
-            doc.text("Detalhamento dos Lados:", 10, linhaY);
+            doc.setFont("helvetica", "bold");
+            doc.text("Medidas de cada lado (Distância entre pontos):", 20, linhaY);
             
-            linhaY += 8;
+            linhaY += 10;
             doc.setFontSize(12);
             doc.setFont("helvetica", "normal");
             
+            // Lista os pontos exatos
             infoLados.forEach(lado => {
-                doc.text(`• ${lado.nome} = ${lado.medida} metros`, 15, linhaY);
-                linhaY += 7;
+                doc.text(`• Ponto ${lado.num1} ➔ Ponto ${lado.num2} :  ${lado.medida} metros`, 25, linhaY);
+                linhaY += 8;
+                
+                // Se o tapete tiver MUITOS pontos, cria uma página 2 automática pra não sobrepor
+                if (linhaY > 275) {
+                    doc.addPage();
+                    linhaY = 20;
+                }
             });
 
-            // Linha de Rodapé
+            // Rodapé
             doc.setFontSize(10);
             doc.setTextColor(150, 150, 150);
             doc.text("Gerado por Medidor de Tapetes Automático", 105, 290, null, null, "center");
 
-            // Salva e Baixa o PDF no celular/pc do usuário!
             doc.save('Medida-Tapete.pdf');
         });
 
