@@ -131,10 +131,10 @@
             
             marcacaoAtiva = false;
             marcacaoFinalizada = true;
-            desenharPontos(); // Redesenha para ligar o último ao primeiro
+            desenharPontos(); 
             
             btnFinalizar.classList.add('hidden');
-            btnTirarOutra.classList.remove('hidden'); // Volta o botão de tirar outra
+            btnTirarOutra.classList.remove('hidden'); 
             
             instrucoes.innerText = "Área finalizada! Pronta para cálculo.";
             instrucoes.classList.remove('text-yellow-400');
@@ -144,7 +144,6 @@
         // Botão Limpar
         btnLimpar.addEventListener('click', function() {
             resetarMarcacoes();
-            // Volta para o modo de marcação ativa automaticamente
             marcacaoAtiva = true;
             btnMarcar.classList.add('hidden');
             btnTirarOutra.classList.add('hidden');
@@ -180,29 +179,30 @@
                 // Se clicou em finalizar, liga o último ponto ao primeiro
                 if (marcacaoFinalizada && pontos.length >= 3) {
                     ctx.lineTo(pontos[0].x, pontos[0].y);
-                    // Pinta o fundo do tapete de azul transparente
                     ctx.fillStyle = 'rgba(59, 130, 246, 0.3)';
                     ctx.fill();
                 }
                 
                 ctx.strokeStyle = '#3b82f6';
-                ctx.lineWidth = 3;
+                ctx.lineWidth = 2; // Linha azul um pouquinho mais fina também
                 ctx.stroke();
             }
 
-            // Desenha as bolinhas
+            // Desenha os pontinhos
             pontos.forEach((p, index) => {
                 ctx.beginPath();
-                ctx.arc(p.x, p.y, 8, 0, 2 * Math.PI);
+                // AQUI FOI A MUDANÇA: de 8 para 3 (raio bem menor)
+                ctx.arc(p.x, p.y, 3, 0, 2 * Math.PI); 
                 ctx.fillStyle = '#ef4444';
                 ctx.fill();
                 ctx.strokeStyle = 'white';
-                ctx.lineWidth = 2;
+                ctx.lineWidth = 1; // Borda branca mais discreta
                 ctx.stroke();
                 
+                // Número do ponto menor e mais perto
                 ctx.fillStyle = 'white';
-                ctx.font = 'bold 16px Arial';
-                ctx.fillText(index + 1, p.x + 12, p.y - 12);
+                ctx.font = 'bold 12px Arial'; // Fonte menor
+                ctx.fillText(index + 1, p.x + 6, p.y - 6);
             });
         }
 
