@@ -8,13 +8,12 @@
 </head>
 <body class="bg-gray-900 text-white min-h-screen flex flex-col p-4 font-sans overflow-x-hidden">
 
-    <!-- Cabeçalho -->
     <div class="w-full max-w-md mx-auto pt-2 pb-4 border-b border-gray-800 mb-4 text-center shrink-0">
         <h1 class="text-2xl font-bold text-blue-400">Medidor de Tapetes</h1>
-        <p class="text-sm text-gray-400 mt-1 font-medium" id="instrucoes">Centralize o tapete para tirar a foto</p>
+        <p class="text-sm text-gray-400 mt-1 font-medium" id="instrucoes">Coloque um cartão de crédito ao lado do tapete e tire a foto</p>
     </div>
 
-    <!-- Tela 1: Botão de Câmera -->
+    <!-- Tela 1: Câmera -->
     <div id="tela-camera" class="flex flex-col items-center justify-center flex-1 w-full max-w-md mx-auto mt-10">
         <label class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-5 px-8 rounded-2xl shadow-lg cursor-pointer w-full text-center transition-all flex items-center justify-center gap-3">
             <span class="text-xl">📸</span>
@@ -23,39 +22,43 @@
         </label>
     </div>
 
-    <!-- Tela 2: Foto carregada -->
+    <!-- Tela 2: Foto e Edição -->
     <div id="tela-foto" class="hidden flex-col items-center w-full max-w-md mx-auto flex-1">
         
-        <!-- Controle de Zoom -->
         <div class="flex items-center gap-3 mb-4 w-full bg-gray-800 p-3 rounded-xl shadow-md border border-gray-700 shrink-0">
             <span class="text-xl">🔍</span>
             <input type="range" id="sliderZoom" min="100" max="400" value="100" class="flex-1 h-2 bg-blue-600 rounded-lg appearance-none cursor-pointer">
             <span id="zoomValor" class="text-sm font-bold w-12 text-right text-blue-400">100%</span>
         </div>
 
-        <!-- Área da Foto com altura fixa para não sumir -->
-        <div id="containerScroll" class="w-full h-[60vh] max-h-[500px] bg-black rounded-lg overflow-auto border-2 border-gray-700 shadow-2xl relative mb-4">
-            <!-- Div que estica conforme o zoom -->
+        <div id="containerScroll" class="w-full h-[55vh] max-h-[450px] bg-black rounded-lg overflow-auto border-2 border-gray-700 shadow-2xl relative mb-4">
             <div id="containerImagem" class="relative w-full origin-top-left">
-                <img id="imagemCarregada" class="w-full h-auto block pointer-events-none" alt="Foto tirada">
-                <!-- Canvas para os desenhos -->
+                <img id="imagemCarregada" class="w-full h-auto block pointer-events-none" alt="Foto">
                 <canvas id="camadaDesenho" class="absolute top-0 left-0 w-full h-full cursor-crosshair"></canvas>
             </div>
         </div>
 
-        <!-- Botões -->
+        <!-- Painel de Resultados (Fica escondido até calcular) -->
+        <div id="painelResultado" class="hidden w-full bg-green-900 border-2 border-green-500 rounded-xl p-4 mb-4 text-center shadow-lg">
+            <h2 class="text-green-300 font-bold text-sm uppercase tracking-wide">Área Total do Tapete</h2>
+            <p id="valorArea" class="text-3xl font-extrabold text-white mt-1">0.00 m²</p>
+        </div>
+
         <div class="flex flex-wrap gap-3 w-full shrink-0 pb-4">
             <button id="btnTirarOutra" class="flex-1 min-w-[140px] bg-gray-700 active:bg-gray-600 text-white py-3 rounded-xl font-semibold transition-colors">
                 Tirar Outra
             </button>
-            <button id="btnMarcar" class="flex-1 min-w-[140px] bg-green-600 active:bg-green-500 text-white py-3 rounded-xl font-bold shadow-lg transition-colors">
-                Marcar Pontos
+            <button id="btnMarcarCartao" class="flex-1 min-w-[140px] bg-purple-600 active:bg-purple-500 text-white py-3 rounded-xl font-bold shadow-lg transition-colors">
+                1º Marcar Cartão
             </button>
-            <button id="btnFinalizar" class="hidden flex-1 min-w-[140px] bg-blue-600 active:bg-blue-500 text-white py-3 rounded-xl font-bold shadow-lg transition-colors">
-                Finalizar
+            <button id="btnMarcarTapete" class="hidden flex-1 min-w-[140px] bg-blue-600 active:bg-blue-500 text-white py-3 rounded-xl font-bold shadow-lg transition-colors">
+                2º Marcar Tapete
+            </button>
+            <button id="btnFinalizar" class="hidden flex-1 min-w-[140px] bg-green-600 active:bg-green-500 text-white py-3 rounded-xl font-bold shadow-lg transition-colors">
+                Finalizar e Calcular
             </button>
             <button id="btnLimpar" class="hidden flex-1 min-w-[140px] bg-yellow-600 active:bg-yellow-500 text-white py-3 rounded-xl font-bold shadow-lg transition-colors">
-                Limpar
+                Limpar Tudo
             </button>
         </div>
     </div>
@@ -71,17 +74,26 @@
         const containerImagem = document.getElementById('containerImagem');
         
         const btnTirarOutra = document.getElementById('btnTirarOutra');
-        const btnMarcar = document.getElementById('btnMarcar');
+        const btnMarcarCartao = document.getElementById('btnMarcarCartao');
+        const btnMarcarTapete = document.getElementById('btnMarcarTapete');
         const btnFinalizar = document.getElementById('btnFinalizar');
         const btnLimpar = document.getElementById('btnLimpar');
         
+        const painelResultado = document.getElementById('painelResultado');
+        const valorArea = document.getElementById('valorArea');
+
         const canvas = document.getElementById('camadaDesenho');
         const ctx = canvas.getContext('2d');
         const instrucoes = document.getElementById('instrucoes');
 
-        let pontos = [];
-        let marcacaoAtiva = false;
-        let marcacaoFinalizada = false;
+        // Variáveis de estado
+        let pontosCartao = [];
+        let pontosTapete = [];
+        let modoAtual = null; // 'cartao', 'tapete', ou null
+        let tapeteFinalizado = false;
+
+        // O tamanho real do cartão de crédito (comprimento) em centímetros
+        const MEDIDA_CARTAO_CM = 8.56; 
 
         function atualizarZoom() {
             const zoom = sliderZoom.value;
@@ -90,20 +102,17 @@
         }
         sliderZoom.addEventListener('input', atualizarZoom);
 
-        // 1. O usuário escolhe a foto
         inputFoto.addEventListener('change', function(event) {
             const arquivo = event.target.files[0];
             if (arquivo) {
                 const leitor = new FileReader();
                 leitor.onload = function(e) {
-                    // Apenas carrega a imagem em memória
                     imagemCarregada.src = e.target.result;
                 }
                 leitor.readAsDataURL(arquivo);
             }
         });
 
-        // 2. Quando a foto termina de carregar, trocamos de tela (evita sumir a foto)
         imagemCarregada.onload = function() {
             telaCamera.classList.add('hidden');
             telaCamera.classList.remove('flex');
@@ -114,11 +123,10 @@
             atualizarZoom();
             resetarMarcacoes();
             
-            // Um pequeno delay para garantir que a tela renderizou
             setTimeout(() => {
                 canvas.width = imagemCarregada.clientWidth;
                 canvas.height = imagemCarregada.clientHeight;
-                desenharPontos();
+                desenharTudo();
             }, 100);
         }
 
@@ -128,116 +136,200 @@
             telaCamera.classList.add('flex');
             telaFoto.classList.add('hidden');
             telaFoto.classList.remove('flex');
-            instrucoes.innerText = "Centralize o tapete para tirar a foto";
+            resetarMarcacoes();
         });
 
-        btnMarcar.addEventListener('click', function() {
-            marcacaoAtiva = true;
-            marcacaoFinalizada = false;
-            btnMarcar.classList.add('hidden');
+        // 1º Passo: Marcar Cartão
+        btnMarcarCartao.addEventListener('click', function() {
+            modoAtual = 'cartao';
+            pontosCartao = []; // Zera se for remarcar
+            
+            btnMarcarCartao.classList.add('hidden');
             btnTirarOutra.classList.add('hidden');
-            btnFinalizar.classList.remove('hidden');
             btnLimpar.classList.remove('hidden');
-            instrucoes.innerText = "De zoom e arraste. Toque para marcar.";
+            
+            instrucoes.innerText = "Marque as 2 pontas do comprimento do cartão.";
+            instrucoes.classList.add('text-purple-400');
+            instrucoes.classList.remove('text-gray-400', 'text-yellow-400');
+        });
+
+        // 2º Passo: Marcar Tapete
+        btnMarcarTapete.addEventListener('click', function() {
+            modoAtual = 'tapete';
+            tapeteFinalizado = false;
+            
+            btnMarcarTapete.classList.add('hidden');
+            btnFinalizar.classList.remove('hidden');
+            
+            instrucoes.innerText = "Agora marque os cantos do tapete.";
+            instrucoes.classList.remove('text-purple-400');
             instrucoes.classList.add('text-yellow-400');
         });
 
+        // 3º Passo: Finalizar e Calcular
         btnFinalizar.addEventListener('click', function() {
-            if (pontos.length < 3) {
-                alert("Marque pelo menos 3 pontos.");
+            if (pontosTapete.length < 3) {
+                alert("Marque pelo menos 3 pontos no tapete!");
                 return;
             }
-            marcacaoAtiva = false;
-            marcacaoFinalizada = true;
-            desenharPontos(); 
+            
+            modoAtual = null;
+            tapeteFinalizado = true;
+            desenharTudo(); 
+            
             btnFinalizar.classList.add('hidden');
             btnTirarOutra.classList.remove('hidden'); 
             
             sliderZoom.value = 100;
             atualizarZoom();
             
-            instrucoes.innerText = "Área finalizada! Pronta para cálculo.";
+            calcularMedidas();
+            
+            instrucoes.innerText = "Cálculo concluído!";
             instrucoes.classList.remove('text-yellow-400');
             instrucoes.classList.add('text-green-400');
         });
 
         btnLimpar.addEventListener('click', function() {
             resetarMarcacoes();
-            marcacaoAtiva = true;
-            btnMarcar.classList.add('hidden');
-            btnTirarOutra.classList.add('hidden');
-            btnFinalizar.classList.remove('hidden');
-            btnLimpar.classList.remove('hidden');
-            instrucoes.innerText = "De zoom e arraste. Toque para marcar.";
-            instrucoes.classList.add('text-yellow-400');
         });
 
-        // A mágica de marcar o ponto exato mesmo com o zoom
+        // Lógica de clique no Canvas
         canvas.addEventListener('click', function(event) {
-            if (!marcacaoAtiva) return;
+            if (!modoAtual) return;
 
             const rect = canvas.getBoundingClientRect();
-            
             const clickX = event.clientX - rect.left;
             const clickY = event.clientY - rect.top;
-
             const scaleX = canvas.width / rect.width;
             const scaleY = canvas.height / rect.height;
-
             const x = clickX * scaleX;
             const y = clickY * scaleY;
 
-            pontos.push({ x, y });
-            desenharPontos();
+            if (modoAtual === 'cartao') {
+                if (pontosCartao.length < 2) {
+                    pontosCartao.push({ x, y });
+                    desenharTudo();
+                    
+                    if (pontosCartao.length === 2) {
+                        modoAtual = null;
+                        btnMarcarTapete.classList.remove('hidden');
+                        instrucoes.innerText = "Cartão marcado! Clique em '2º Marcar Tapete'.";
+                        instrucoes.classList.replace('text-purple-400', 'text-white');
+                    }
+                }
+            } else if (modoAtual === 'tapete') {
+                pontosTapete.push({ x, y });
+                desenharTudo();
+            }
         });
 
-        function desenharPontos() {
+        function desenharTudo() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            if (pontos.length > 1) {
-                ctx.beginPath();
-                ctx.moveTo(pontos[0].x, pontos[0].y);
-                for (let i = 1; i < pontos.length; i++) {
-                    ctx.lineTo(pontos[i].x, pontos[i].y);
+            // Desenha a linha do Cartão (Roxa)
+            if (pontosCartao.length > 0) {
+                if (pontosCartao.length === 2) {
+                    ctx.beginPath();
+                    ctx.moveTo(pontosCartao[0].x, pontosCartao[0].y);
+                    ctx.lineTo(pontosCartao[1].x, pontosCartao[1].y);
+                    ctx.strokeStyle = '#a855f7'; // Roxo
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
                 }
-                if (marcacaoFinalizada && pontos.length >= 3) {
-                    ctx.lineTo(pontos[0].x, pontos[0].y);
-                    ctx.fillStyle = 'rgba(59, 130, 246, 0.3)';
+                pontosCartao.forEach((p) => {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 4, 0, 2 * Math.PI); 
+                    ctx.fillStyle = '#a855f7';
                     ctx.fill();
-                }
-                ctx.strokeStyle = '#3b82f6';
-                ctx.lineWidth = 2;
-                ctx.stroke();
+                    ctx.strokeStyle = 'white';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                });
             }
 
-            pontos.forEach((p, index) => {
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, 3, 0, 2 * Math.PI); 
-                ctx.fillStyle = '#ef4444';
-                ctx.fill();
-                ctx.strokeStyle = 'white';
-                ctx.lineWidth = 1;
-                ctx.stroke();
-                
-                ctx.fillStyle = 'white';
-                ctx.font = 'bold 12px Arial';
-                ctx.fillText(index + 1, p.x + 6, p.y - 6);
-            });
+            // Desenha o Tapete (Azul/Vermelho)
+            if (pontosTapete.length > 0) {
+                if (pontosTapete.length > 1) {
+                    ctx.beginPath();
+                    ctx.moveTo(pontosTapete[0].x, pontosTapete[0].y);
+                    for (let i = 1; i < pontosTapete.length; i++) {
+                        ctx.lineTo(pontosTapete[i].x, pontosTapete[i].y);
+                    }
+                    if (tapeteFinalizado && pontosTapete.length >= 3) {
+                        ctx.lineTo(pontosTapete[0].x, pontosTapete[0].y);
+                        ctx.fillStyle = 'rgba(59, 130, 246, 0.3)';
+                        ctx.fill();
+                    }
+                    ctx.strokeStyle = '#3b82f6';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
+
+                pontosTapete.forEach((p, index) => {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 3, 0, 2 * Math.PI); 
+                    ctx.fillStyle = '#ef4444';
+                    ctx.fill();
+                    ctx.strokeStyle = 'white';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                    ctx.fillStyle = 'white';
+                    ctx.font = 'bold 12px Arial';
+                    ctx.fillText(index + 1, p.x + 6, p.y - 6);
+                });
+            }
+        }
+
+        // --- O CORAÇÃO DA MATEMÁTICA ---
+        function calcularMedidas() {
+            // 1. Descobrir quantos pixels tem a linha do cartão
+            const dx = pontosCartao[1].x - pontosCartao[0].x;
+            const dy = pontosCartao[1].y - pontosCartao[0].y;
+            const pixelsCartao = Math.sqrt(dx * dx + dy * dy);
+
+            // 2. Fator de conversão (quantos cm tem 1 pixel)
+            const cmPorPixel = MEDIDA_CARTAO_CM / pixelsCartao;
+
+            // 3. Calcular a Área do tapete em Pixels (Fórmula de Shoelace/Polígonos)
+            let areaEmPixels = 0;
+            let j = pontosTapete.length - 1;
+            for (let i = 0; i < pontosTapete.length; i++) {
+                areaEmPixels += (pontosTapete[j].x + pontosTapete[i].x) * (pontosTapete[j].y - pontosTapete[i].y);
+                j = i;
+            }
+            areaEmPixels = Math.abs(areaEmPixels / 2);
+
+            // 4. Converter a Área de Pixels para Centímetros Quadrados (cm²)
+            // Como é área, multiplicamos o fator de escala ao quadrado
+            let areaEmCm2 = areaEmPixels * (cmPorPixel * cmPorPixel);
+
+            // 5. Converter de cm² para m² (divide por 10.000)
+            let areaEmM2 = areaEmCm2 / 10000;
+
+            // Mostra o resultado na tela
+            valorArea.innerText = areaEmM2.toFixed(2) + " m²";
+            painelResultado.classList.remove('hidden');
         }
 
         function resetarMarcacoes() {
-            pontos = [];
-            marcacaoAtiva = false;
-            marcacaoFinalizada = false;
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            pontosCartao = [];
+            pontosTapete = [];
+            modoAtual = null;
+            tapeteFinalizado = false;
             
-            btnMarcar.classList.remove('hidden');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            painelResultado.classList.add('hidden');
+            
+            btnMarcarCartao.classList.remove('hidden');
             btnTirarOutra.classList.remove('hidden');
+            btnMarcarTapete.classList.add('hidden');
             btnFinalizar.classList.add('hidden');
             btnLimpar.classList.add('hidden');
             
-            instrucoes.innerText = "Foto tirada! Clique em Marcar Pontos.";
-            instrucoes.classList.remove('text-yellow-400', 'text-green-400');
+            instrucoes.innerText = "Coloque o cartão ao lado do tapete e tire a foto.";
+            instrucoes.classList.remove('text-green-400', 'text-yellow-400', 'text-purple-400', 'text-white');
+            instrucoes.classList.add('text-gray-400');
         }
     </script>
 </body>
