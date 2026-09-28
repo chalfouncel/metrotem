@@ -11,7 +11,7 @@
     <!-- Cabeçalho -->
     <div class="w-full max-w-md pt-4 pb-6 border-b border-gray-800 mb-6 text-center">
         <h1 class="text-2xl font-bold text-blue-400">Medidor de Tapetes</h1>
-        <p class="text-sm text-gray-400 mt-2 font-medium transition-colors duration-300" id="instrucoes">Centralize o gabarito no chão para tirar a foto</p>
+        <p class="text-sm text-gray-400 mt-2 font-medium transition-colors duration-300" id="instrucoes">Centralize o tapete para tirar a foto</p>
     </div>
 
     <!-- Tela 1: Botão de Câmera -->
@@ -26,21 +26,22 @@
     <!-- Tela 2: Foto carregada -->
     <div id="tela-foto" class="hidden flex-col items-center w-full max-w-md flex-1">
         
-        <!-- Área da Foto com o Canvas por cima -->
         <div class="relative w-full bg-black rounded-lg overflow-hidden border-2 border-gray-700 shadow-2xl" id="containerImagem">
             <img id="imagemCarregada" class="w-full h-auto block" alt="Foto tirada">
-            <!-- Canvas invisível onde vamos desenhar os pontos e linhas -->
             <canvas id="camadaDesenho" class="absolute top-0 left-0 w-full h-full touch-none"></canvas>
         </div>
 
-        <div class="flex gap-4 mt-8 w-full">
-            <button id="btnTirarOutra" class="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-4 rounded-xl font-semibold transition-colors">
+        <div class="flex flex-wrap gap-4 mt-8 w-full">
+            <button id="btnTirarOutra" class="flex-1 min-w-[140px] bg-gray-700 hover:bg-gray-600 text-white py-4 rounded-xl font-semibold transition-colors">
                 Tirar Outra
             </button>
-            <button id="btnMarcar" class="flex-1 bg-green-600 hover:bg-green-500 text-white py-4 rounded-xl font-bold shadow-lg transition-colors">
-                Marcar 4 Cantos
+            <button id="btnMarcar" class="flex-1 min-w-[140px] bg-green-600 hover:bg-green-500 text-white py-4 rounded-xl font-bold shadow-lg transition-colors">
+                Marcar Pontos
             </button>
-            <button id="btnLimpar" class="hidden flex-1 bg-yellow-600 hover:bg-yellow-500 text-white py-4 rounded-xl font-bold shadow-lg transition-colors">
+            <button id="btnFinalizar" class="hidden flex-1 min-w-[140px] bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-xl font-bold shadow-lg transition-colors">
+                Finalizar Marcação
+            </button>
+            <button id="btnLimpar" class="hidden flex-1 min-w-[140px] bg-yellow-600 hover:bg-yellow-500 text-white py-4 rounded-xl font-bold shadow-lg transition-colors">
                 Limpar Pontos
             </button>
         </div>
@@ -51,23 +52,26 @@
         const telaCamera = document.getElementById('tela-camera');
         const telaFoto = document.getElementById('tela-foto');
         const imagemCarregada = document.getElementById('imagemCarregada');
+        
+        // Botões
         const btnTirarOutra = document.getElementById('btnTirarOutra');
         const btnMarcar = document.getElementById('btnMarcar');
+        const btnFinalizar = document.getElementById('btnFinalizar');
         const btnLimpar = document.getElementById('btnLimpar');
+        
         const canvas = document.getElementById('camadaDesenho');
         const ctx = canvas.getContext('2d');
         const instrucoes = document.getElementById('instrucoes');
 
         let pontos = [];
         let marcacaoAtiva = false;
+        let marcacaoFinalizada = false;
 
-        // Ajusta o tamanho da área de desenho quando a foto carrega
         imagemCarregada.onload = function() {
             canvas.width = imagemCarregada.clientWidth;
             canvas.height = imagemCarregada.clientHeight;
         }
 
-        // Recalcula o tamanho se virar o celular
         window.addEventListener('resize', () => {
             if(!telaFoto.classList.contains('hidden')) {
                 canvas.width = imagemCarregada.clientWidth;
@@ -100,62 +104,88 @@
             telaCamera.classList.add('flex');
             telaFoto.classList.add('hidden');
             telaFoto.classList.remove('flex');
-            instrucoes.innerText = "Centralize o gabarito no chão para tirar a foto";
+            instrucoes.innerText = "Centralize o tapete para tirar a foto";
         });
 
-        // Botão Marcar 4 Cantos
+        // Botão Iniciar Marcação
         btnMarcar.addEventListener('click', function() {
             marcacaoAtiva = true;
+            marcacaoFinalizada = false;
+            
             btnMarcar.classList.add('hidden');
+            btnTirarOutra.classList.add('hidden');
+            
+            btnFinalizar.classList.remove('hidden');
             btnLimpar.classList.remove('hidden');
-            btnTirarOutra.classList.add('hidden'); // Esconde pra evitar clique acidental
-            instrucoes.innerText = "Toque nos 4 cantos do gabarito na foto";
+            
+            instrucoes.innerText = "Vá tocando nos cantos. Depois clique em Finalizar.";
             instrucoes.classList.add('text-yellow-400');
         });
 
-        // Botão Limpar Pontos
+        // Botão Finalizar Marcação
+        btnFinalizar.addEventListener('click', function() {
+            if (pontos.length < 3) {
+                alert("Marque pelo menos 3 pontos para formar uma área.");
+                return;
+            }
+            
+            marcacaoAtiva = false;
+            marcacaoFinalizada = true;
+            desenharPontos(); // Redesenha para ligar o último ao primeiro
+            
+            btnFinalizar.classList.add('hidden');
+            btnTirarOutra.classList.remove('hidden'); // Volta o botão de tirar outra
+            
+            instrucoes.innerText = "Área finalizada! Pronta para cálculo.";
+            instrucoes.classList.remove('text-yellow-400');
+            instrucoes.classList.add('text-green-400');
+        });
+
+        // Botão Limpar
         btnLimpar.addEventListener('click', function() {
             resetarMarcacoes();
+            // Volta para o modo de marcação ativa automaticamente
             marcacaoAtiva = true;
-            instrucoes.innerText = "Toque nos 4 cantos do gabarito na foto";
+            btnMarcar.classList.add('hidden');
+            btnTirarOutra.classList.add('hidden');
+            btnFinalizar.classList.remove('hidden');
+            btnLimpar.classList.remove('hidden');
+            instrucoes.innerText = "Vá tocando nos cantos. Depois clique em Finalizar.";
             instrucoes.classList.add('text-yellow-400');
         });
 
-        // Lógica de tocar na tela e marcar os pontos
+        // Lógica de tocar na tela
         canvas.addEventListener('pointerdown', function(event) {
             if (!marcacaoAtiva) return;
-            if (pontos.length >= 4) return; // Máximo de 4 pontos
 
-            // Pega a posição exata do toque
             const rect = canvas.getBoundingClientRect();
             const x = event.clientX - rect.left;
             const y = event.clientY - rect.top;
 
             pontos.push({ x, y });
             desenharPontos();
-
-            if (pontos.length === 4) {
-                instrucoes.innerText = "4 cantos marcados! Área pronta para cálculo.";
-                instrucoes.classList.remove('text-yellow-400');
-                instrucoes.classList.add('text-green-400');
-            }
         });
 
         function desenharPontos() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Desenha as linhas conectando os pontos
+            // Desenha as linhas
             if (pontos.length > 1) {
                 ctx.beginPath();
                 ctx.moveTo(pontos[0].x, pontos[0].y);
                 for (let i = 1; i < pontos.length; i++) {
                     ctx.lineTo(pontos[i].x, pontos[i].y);
                 }
-                // Se tiver 4 pontos, fecha o desenho do tapete
-                if (pontos.length === 4) {
+                
+                // Se clicou em finalizar, liga o último ponto ao primeiro
+                if (marcacaoFinalizada && pontos.length >= 3) {
                     ctx.lineTo(pontos[0].x, pontos[0].y);
+                    // Pinta o fundo do tapete de azul transparente
+                    ctx.fillStyle = 'rgba(59, 130, 246, 0.3)';
+                    ctx.fill();
                 }
-                ctx.strokeStyle = '#3b82f6'; // Cor Azul
+                
+                ctx.strokeStyle = '#3b82f6';
                 ctx.lineWidth = 3;
                 ctx.stroke();
             }
@@ -164,13 +194,12 @@
             pontos.forEach((p, index) => {
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, 8, 0, 2 * Math.PI);
-                ctx.fillStyle = '#ef4444'; // Cor Vermelha
+                ctx.fillStyle = '#ef4444';
                 ctx.fill();
                 ctx.strokeStyle = 'white';
                 ctx.lineWidth = 2;
                 ctx.stroke();
                 
-                // Número do ponto
                 ctx.fillStyle = 'white';
                 ctx.font = 'bold 16px Arial';
                 ctx.fillText(index + 1, p.x + 12, p.y - 12);
@@ -179,12 +208,16 @@
 
         function resetarMarcacoes() {
             pontos = [];
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
             marcacaoAtiva = false;
+            marcacaoFinalizada = false;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
             btnMarcar.classList.remove('hidden');
-            btnLimpar.classList.add('hidden');
             btnTirarOutra.classList.remove('hidden');
-            instrucoes.innerText = "Foto tirada! Clique em Marcar 4 Cantos.";
+            btnFinalizar.classList.add('hidden');
+            btnLimpar.classList.add('hidden');
+            
+            instrucoes.innerText = "Foto tirada! Clique em Marcar Pontos.";
             instrucoes.classList.remove('text-yellow-400', 'text-green-400');
         }
     </script>
