@@ -5,12 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Medidor de Tapetes</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Biblioteca que gera o PDF mágico -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body class="bg-gray-900 text-white min-h-screen flex flex-col p-4 font-sans overflow-x-hidden">
 
     <div class="w-full max-w-md mx-auto pt-2 pb-4 border-b border-gray-800 mb-4 text-center shrink-0">
         <h1 class="text-2xl font-bold text-blue-400">Medidor de Tapetes</h1>
-        <p class="text-sm text-gray-400 mt-1 font-medium" id="instrucoes">Coloque um cartão de crédito ao lado do tapete e tire a foto</p>
+        <p class="text-sm text-gray-400 mt-1 font-medium" id="instrucoes">Coloque um cartão de crédito ao lado e tire a foto</p>
     </div>
 
     <!-- Tela 1: Câmera -->
@@ -38,15 +40,19 @@
             </div>
         </div>
 
-        <!-- Painel de Resultados (Fica escondido até calcular) -->
+        <!-- Painel de Resultados -->
         <div id="painelResultado" class="hidden w-full bg-green-900 border-2 border-green-500 rounded-xl p-4 mb-4 text-center shadow-lg">
-            <h2 class="text-green-300 font-bold text-sm uppercase tracking-wide">Área Total do Tapete</h2>
-            <p id="valorArea" class="text-3xl font-extrabold text-white mt-1">0.00 m²</p>
+            <h2 class="text-green-300 font-bold text-sm uppercase tracking-wide">Área Total</h2>
+            <p id="valorArea" class="text-3xl font-extrabold text-white mt-1 mb-2">0.00 m²</p>
+            <div id="listaMedidas" class="text-sm text-gray-200 grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-green-700 text-left pl-4">
+                <!-- As medidas dos lados entrarão aqui via Javascript -->
+            </div>
         </div>
 
+        <!-- Botões de Ação -->
         <div class="flex flex-wrap gap-3 w-full shrink-0 pb-4">
             <button id="btnTirarOutra" class="flex-1 min-w-[140px] bg-gray-700 active:bg-gray-600 text-white py-3 rounded-xl font-semibold transition-colors">
-                Tirar Outra
+                Nova Foto
             </button>
             <button id="btnMarcarCartao" class="flex-1 min-w-[140px] bg-purple-600 active:bg-purple-500 text-white py-3 rounded-xl font-bold shadow-lg transition-colors">
                 1º Marcar Cartão
@@ -56,6 +62,9 @@
             </button>
             <button id="btnFinalizar" class="hidden flex-1 min-w-[140px] bg-green-600 active:bg-green-500 text-white py-3 rounded-xl font-bold shadow-lg transition-colors">
                 Finalizar e Calcular
+            </button>
+            <button id="btnPDF" class="hidden flex-1 min-w-[140px] bg-red-600 active:bg-red-500 text-white py-3 rounded-xl font-bold shadow-lg transition-colors flex items-center justify-center gap-2">
+                <span>📄</span> Gerar PDF
             </button>
             <button id="btnLimpar" class="hidden flex-1 min-w-[140px] bg-yellow-600 active:bg-yellow-500 text-white py-3 rounded-xl font-bold shadow-lg transition-colors">
                 Limpar Tudo
@@ -78,22 +87,25 @@
         const btnMarcarTapete = document.getElementById('btnMarcarTapete');
         const btnFinalizar = document.getElementById('btnFinalizar');
         const btnLimpar = document.getElementById('btnLimpar');
+        const btnPDF = document.getElementById('btnPDF');
         
         const painelResultado = document.getElementById('painelResultado');
         const valorArea = document.getElementById('valorArea');
+        const listaMedidas = document.getElementById('listaMedidas');
 
         const canvas = document.getElementById('camadaDesenho');
         const ctx = canvas.getContext('2d');
         const instrucoes = document.getElementById('instrucoes');
 
-        // Variáveis de estado
         let pontosCartao = [];
         let pontosTapete = [];
-        let modoAtual = null; // 'cartao', 'tapete', ou null
+        let modoAtual = null;
         let tapeteFinalizado = false;
-
-        // O tamanho real do cartão de crédito (comprimento) em centímetros
+        
+        // Variaveis de Matemática
         const MEDIDA_CARTAO_CM = 8.56; 
+        let cmPorPixelGlobal = 0;
+        let infoLados = []; // Guarda as medidas para usar no PDF e na tela
 
         function atualizarZoom() {
             const zoom = sliderZoom.value;
@@ -139,53 +151,46 @@
             resetarMarcacoes();
         });
 
-        // 1º Passo: Marcar Cartão
         btnMarcarCartao.addEventListener('click', function() {
             modoAtual = 'cartao';
-            pontosCartao = []; // Zera se for remarcar
-            
+            pontosCartao = []; 
             btnMarcarCartao.classList.add('hidden');
             btnTirarOutra.classList.add('hidden');
             btnLimpar.classList.remove('hidden');
-            
             instrucoes.innerText = "Marque as 2 pontas do comprimento do cartão.";
             instrucoes.classList.add('text-purple-400');
             instrucoes.classList.remove('text-gray-400', 'text-yellow-400');
         });
 
-        // 2º Passo: Marcar Tapete
         btnMarcarTapete.addEventListener('click', function() {
             modoAtual = 'tapete';
             tapeteFinalizado = false;
-            
             btnMarcarTapete.classList.add('hidden');
             btnFinalizar.classList.remove('hidden');
-            
-            instrucoes.innerText = "Agora marque os cantos do tapete.";
+            instrucoes.innerText = "Agora marque os cantos do tapete em ordem (circulando).";
             instrucoes.classList.remove('text-purple-400');
             instrucoes.classList.add('text-yellow-400');
         });
 
-        // 3º Passo: Finalizar e Calcular
         btnFinalizar.addEventListener('click', function() {
             if (pontosTapete.length < 3) {
                 alert("Marque pelo menos 3 pontos no tapete!");
                 return;
             }
-            
             modoAtual = null;
             tapeteFinalizado = true;
+            
+            calcularMedidas(); // Calcula antes para o desenharTudo ter as medidas e plotar
             desenharTudo(); 
             
             btnFinalizar.classList.add('hidden');
             btnTirarOutra.classList.remove('hidden'); 
+            btnPDF.classList.remove('hidden'); // MOSTRA O BOTAO PDF
             
             sliderZoom.value = 100;
             atualizarZoom();
             
-            calcularMedidas();
-            
-            instrucoes.innerText = "Cálculo concluído!";
+            instrucoes.innerText = "Cálculo concluído! Gere seu PDF.";
             instrucoes.classList.remove('text-yellow-400');
             instrucoes.classList.add('text-green-400');
         });
@@ -194,7 +199,6 @@
             resetarMarcacoes();
         });
 
-        // Lógica de clique no Canvas
         canvas.addEventListener('click', function(event) {
             if (!modoAtual) return;
 
@@ -210,7 +214,6 @@
                 if (pontosCartao.length < 2) {
                     pontosCartao.push({ x, y });
                     desenharTudo();
-                    
                     if (pontosCartao.length === 2) {
                         modoAtual = null;
                         btnMarcarTapete.classList.remove('hidden');
@@ -227,13 +230,13 @@
         function desenharTudo() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Desenha a linha do Cartão (Roxa)
+            // Desenha Cartão (Roxo)
             if (pontosCartao.length > 0) {
                 if (pontosCartao.length === 2) {
                     ctx.beginPath();
                     ctx.moveTo(pontosCartao[0].x, pontosCartao[0].y);
                     ctx.lineTo(pontosCartao[1].x, pontosCartao[1].y);
-                    ctx.strokeStyle = '#a855f7'; // Roxo
+                    ctx.strokeStyle = '#a855f7'; 
                     ctx.lineWidth = 3;
                     ctx.stroke();
                 }
@@ -248,7 +251,7 @@
                 });
             }
 
-            // Desenha o Tapete (Azul/Vermelho)
+            // Desenha Tapete
             if (pontosTapete.length > 0) {
                 if (pontosTapete.length > 1) {
                     ctx.beginPath();
@@ -279,19 +282,39 @@
                     ctx.fillText(index + 1, p.x + 6, p.y - 6);
                 });
             }
+
+            // SE FINALIZOU, DESENHA AS MEDIDAS DOS LADOS EM CIMA DA LINHA
+            if (tapeteFinalizado && infoLados.length > 0) {
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                
+                infoLados.forEach(lado => {
+                    // Pega o meio da linha pra escrever a medida
+                    let meioX = (lado.ponto1.x + lado.ponto2.x) / 2;
+                    let meioY = (lado.ponto1.y + lado.ponto2.y) / 2;
+                    let texto = lado.medida + 'm';
+
+                    // Desenha um fundo escuro pro texto ficar legível
+                    ctx.font = 'bold 13px Arial';
+                    let textWidth = ctx.measureText(texto).width;
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                    ctx.fillRect(meioX - textWidth/2 - 4, meioY - 10, textWidth + 8, 20);
+
+                    // Escreve o texto em verde
+                    ctx.fillStyle = '#4ade80';
+                    ctx.fillText(texto, meioX, meioY);
+                });
+            }
         }
 
-        // --- O CORAÇÃO DA MATEMÁTICA ---
         function calcularMedidas() {
-            // 1. Descobrir quantos pixels tem a linha do cartão
+            // 1. Acha o cmPorPixel baseado no cartão
             const dx = pontosCartao[1].x - pontosCartao[0].x;
             const dy = pontosCartao[1].y - pontosCartao[0].y;
             const pixelsCartao = Math.sqrt(dx * dx + dy * dy);
+            cmPorPixelGlobal = MEDIDA_CARTAO_CM / pixelsCartao;
 
-            // 2. Fator de conversão (quantos cm tem 1 pixel)
-            const cmPorPixel = MEDIDA_CARTAO_CM / pixelsCartao;
-
-            // 3. Calcular a Área do tapete em Pixels (Fórmula de Shoelace/Polígonos)
+            // 2. Calcula Área Total
             let areaEmPixels = 0;
             let j = pontosTapete.length - 1;
             for (let i = 0; i < pontosTapete.length; i++) {
@@ -299,22 +322,105 @@
                 j = i;
             }
             areaEmPixels = Math.abs(areaEmPixels / 2);
-
-            // 4. Converter a Área de Pixels para Centímetros Quadrados (cm²)
-            // Como é área, multiplicamos o fator de escala ao quadrado
-            let areaEmCm2 = areaEmPixels * (cmPorPixel * cmPorPixel);
-
-            // 5. Converter de cm² para m² (divide por 10.000)
+            let areaEmCm2 = areaEmPixels * (cmPorPixelGlobal * cmPorPixelGlobal);
             let areaEmM2 = areaEmCm2 / 10000;
-
-            // Mostra o resultado na tela
+            
             valorArea.innerText = areaEmM2.toFixed(2) + " m²";
+
+            // 3. Calcula cada Lado
+            infoLados = [];
+            listaMedidas.innerHTML = ''; // Limpa a lista na tela
+            
+            for (let i = 0; i < pontosTapete.length; i++) {
+                let p1 = pontosTapete[i];
+                let p2 = pontosTapete[(i + 1) % pontosTapete.length]; // O % liga o último com o primeiro
+                
+                let numP1 = i + 1;
+                let numP2 = ((i + 1) % pontosTapete.length === 0) ? 1 : i + 2;
+
+                let distPx = Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
+                let distCm = distPx * cmPorPixelGlobal;
+                let distM = (distCm / 100).toFixed(2);
+
+                infoLados.push({
+                    nome: `Lado ${numP1} ao ${numP2}`,
+                    medida: distM,
+                    ponto1: p1,
+                    ponto2: p2
+                });
+
+                // Adiciona na tela no painel verde
+                let htmlLado = `<div><span class="font-bold text-green-400">${numP1} ➔ ${numP2}:</span> ${distM}m</div>`;
+                listaMedidas.innerHTML += htmlLado;
+            }
+
             painelResultado.classList.remove('hidden');
         }
+
+        // --- GERAÇÃO DO PDF ---
+        btnPDF.addEventListener('click', function() {
+            // Pega a biblioteca JS do PDF
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            // Título
+            doc.setFontSize(22);
+            doc.setFont("helvetica", "bold");
+            doc.text("Medição de Tapete", 105, 20, null, null, "center");
+
+            // Junta a Foto Real + Desenhos em uma imagem só pra por no PDF
+            const canvasTemp = document.createElement('canvas');
+            canvasTemp.width = canvas.width;
+            canvasTemp.height = canvas.height;
+            const ctxTemp = canvasTemp.getContext('2d');
+            
+            ctxTemp.drawImage(imagemCarregada, 0, 0, canvasTemp.width, canvasTemp.height);
+            ctxTemp.drawImage(canvas, 0, 0);
+
+            const fotoFinal = canvasTemp.toDataURL('image/jpeg', 0.8);
+            
+            // Calcula tamanho da foto no papel A4
+            const larguraA4 = 190; // 210mm (A4) - margens
+            const proporcao = canvasTemp.height / canvasTemp.width;
+            const alturaFotoPDF = larguraA4 * proporcao;
+
+            // Insere a foto no PDF
+            doc.addImage(fotoFinal, 'JPEG', 10, 30, larguraA4, alturaFotoPDF);
+
+            // Escreve os dados numéricos abaixo da foto
+            let linhaY = 30 + alturaFotoPDF + 15;
+            
+            doc.setFontSize(16);
+            doc.setTextColor(0, 100, 0); // Verde Escuro
+            doc.text(`Área Total: ${valorArea.innerText}`, 10, linhaY);
+            
+            linhaY += 12;
+            doc.setTextColor(0, 0, 0); // Preto
+            doc.setFontSize(14);
+            doc.text("Detalhamento dos Lados:", 10, linhaY);
+            
+            linhaY += 8;
+            doc.setFontSize(12);
+            doc.setFont("helvetica", "normal");
+            
+            infoLados.forEach(lado => {
+                doc.text(`• ${lado.nome} = ${lado.medida} metros`, 15, linhaY);
+                linhaY += 7;
+            });
+
+            // Linha de Rodapé
+            doc.setFontSize(10);
+            doc.setTextColor(150, 150, 150);
+            doc.text("Gerado por Medidor de Tapetes Automático", 105, 290, null, null, "center");
+
+            // Salva e Baixa o PDF no celular/pc do usuário!
+            doc.save('Medida-Tapete.pdf');
+        });
 
         function resetarMarcacoes() {
             pontosCartao = [];
             pontosTapete = [];
+            infoLados = [];
             modoAtual = null;
             tapeteFinalizado = false;
             
@@ -325,9 +431,10 @@
             btnTirarOutra.classList.remove('hidden');
             btnMarcarTapete.classList.add('hidden');
             btnFinalizar.classList.add('hidden');
+            btnPDF.classList.add('hidden');
             btnLimpar.classList.add('hidden');
             
-            instrucoes.innerText = "Coloque o cartão ao lado do tapete e tire a foto.";
+            instrucoes.innerText = "Coloque o cartão ao lado e tire a foto.";
             instrucoes.classList.remove('text-green-400', 'text-yellow-400', 'text-purple-400', 'text-white');
             instrucoes.classList.add('text-gray-400');
         }
