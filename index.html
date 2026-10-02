@@ -145,10 +145,34 @@
             }
         }
 
+        // Centraliza a rolagem exatamente em coordenadas reais da foto
+        function centralizarNoPontoReal(pxReal, pyReal) {
+            if (!imagemCarregada.naturalWidth) return;
+            const proporcao = containerImagem.offsetWidth / imagemCarregada.naturalWidth;
+            const xTela = pxReal * proporcao;
+            const yTela = pyReal * proporcao;
+
+            containerScroll.scrollLeft = xTela - (containerScroll.clientWidth / 2);
+            containerScroll.scrollTop = yTela - (containerScroll.clientHeight / 2);
+        }
+
+        function obterCentroCartao() {
+            if (pontosCartao.length === 0) return null;
+            let sx = 0, sy = 0;
+            pontosCartao.forEach(p => { sx += p.x; sy += p.y; });
+            return { x: sx / pontosCartao.length, y: sy / pontosCartao.length };
+        }
+
         function atualizarZoom() {
             const zoom = sliderZoom.value;
             zoomValor.innerText = zoom + '%';
             containerImagem.style.width = zoom + '%';
+
+            // Se o cartão já existe, mantém ele centralizado durante a variação do zoom
+            const centro = obterCentroCartao();
+            if (centro) {
+                requestAnimationFrame(() => centralizarNoPontoReal(centro.x, centro.y));
+            }
             requestAnimationFrame(desenharTudo);
         }
         sliderZoom.addEventListener('input', atualizarZoom);
@@ -310,11 +334,24 @@
             } else if (modoAtual === 'detectar_cartao') {
                 pontosCartao = autoDetectarCartaoNoPonto(pt.x, pt.y);
                 modoAtual = 'ajustar_cartao';
-                travarScroll(true); // FOTO 100% ESTÁTICA DURANTE O AJUSTE DOS CANTOS
+
+                // Aplica Zoom de 400x focado exatamente no cartão detectado
+                sliderZoom.value = 400;
+                zoomValor.innerText = '400%';
+                containerImagem.style.width = '400%';
+                
+                // Centraliza primeiro com o scroll liberado e depois trava estático
+                travarScroll(false);
+                requestAnimationFrame(() => {
+                    const centro = obterCentroCartao();
+                    if (centro) centralizarNoPontoReal(centro.x, centro.y);
+                    travarScroll(true);
+                });
+
                 btnDetectarCartao.classList.add('hidden');
                 btnConfirmarCartao.classList.remove('hidden');
                 btnDesfazer.classList.remove('hidden');
-                instrucoes.innerText = "Cartão detectado! Arraste os pinos com precisão e clique em 'Confirmar'.";
+                instrucoes.innerText = "Cartão focado! Ajuste os cantos e clique em 'Confirmar'.";
                 instrucoes.classList.replace('text-red-400', 'text-yellow-400');
                 desenharTudo();
             } else if (modoAtual === 'tapete') {
@@ -374,7 +411,15 @@
 
         btnConfirmarCartao.addEventListener('click', function() {
             modoAtual = null;
-            travarScroll(false); // Libera rolagem de volta para navegar pelo tapete
+            travarScroll(false);
+            
+            // Retorna o zoom para visão geral facilitar a marcação do tapete
+            sliderZoom.value = 100;
+            zoomValor.innerText = '100%';
+            containerImagem.style.width = '100%';
+            containerScroll.scrollLeft = 0;
+            containerScroll.scrollTop = 0;
+
             btnConfirmarCartao.classList.add('hidden');
             btnMarcarTapete.classList.remove('hidden');
             instrucoes.innerText = "Cartão calibrado com 4 cantos! Clique em '2º Marcar Tapete'.";
