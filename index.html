@@ -2,6 +2,9 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Medidor de Tapetes com Folha A4</title>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -133,11 +136,9 @@
         let pontoArrastando = null;
         let H_matrix = null;
 
-        // Dimensões A4 em milímetros
         const A4_CURTO_MM = 210;
         const A4_LONGO_MM = 297;
 
-        // Controle de Zoom por Pinça
         let zoomAtual = 100;
         let distanciaInicialPinca = 0;
         let zoomInicialPinca = 100;
@@ -149,7 +150,6 @@
             requestAnimationFrame(desenharTudo);
         }
 
-        // Pinça com 2 dedos
         containerScroll.addEventListener('touchstart', (e) => {
             if (e.touches.length === 2) {
                 distanciaInicialPinca = Math.hypot(
@@ -178,7 +178,6 @@
             }
         });
 
-        // Zoom por scroll do mouse no desktop
         containerScroll.addEventListener('wheel', (e) => {
             if (e.ctrlKey || modoInteracao === 'PAN') {
                 e.preventDefault();
@@ -245,7 +244,8 @@
         }
         function esconderLupa() { lupaCirurgica.classList.add('hidden'); }
 
-        function encontrarPontoProximo(pt, lista, raioMax = 40) {
+        // Raio reduzido para 22px para evitar conflito com novos cliques
+        function encontrarPontoProximo(pt, lista, raioMax = 22) {
             const rect = canvas.getBoundingClientRect();
             const escala = canvas.width / rect.width;
             for (let i = 0; i < lista.length; i++) {
@@ -259,6 +259,7 @@
         function lidarInicio(clientX, clientY) {
             const pt = obterCoordReal(clientX, clientY);
 
+            // Permite arrastar se clicar exatamente em cima
             let idx = encontrarPontoProximo(pt, pontosA4);
             if (idx !== -1) {
                 pontoArrastando = { lista: pontosA4, idx };
@@ -276,10 +277,16 @@
                 if (estadoEtapa === 'A4' && pontosA4.length < 4) {
                     pontosA4.push(pt);
                     atualizarFluxoA4();
-                } else if (estadoEtapa === 'TAPETE') {
+                } else if (estadoEtapa === 'TAPETE' || estadoEtapa === 'FINALIZADO') {
+                    // Sem limite de pontos
                     pontosTapete.push(pt);
                     instrucoes.innerText = `${pontosTapete.length} pontos marcados no tapete.`;
-                    if (pontosTapete.length >= 3) btnCalcular.classList.remove('hidden');
+                    if (pontosTapete.length >= 3) {
+                        btnCalcular.classList.remove('hidden');
+                        if (estadoEtapa === 'FINALIZADO') {
+                            calcularMedidasComHomografia();
+                        }
+                    }
                 }
                 btnDesfazer.classList.remove('hidden');
                 desenharTudo();
@@ -356,8 +363,16 @@
             if (estadoEtapa === 'A4' && pontosA4.length > 0) {
                 pontosA4.pop();
                 atualizarFluxoA4();
-            } else if (estadoEtapa === 'TAPETE' && pontosTapete.length > 0) {
+            } else if ((estadoEtapa === 'TAPETE' || estadoEtapa === 'FINALIZADO') && pontosTapete.length > 0) {
                 pontosTapete.pop();
+                instrucoes.innerText = `${pontosTapete.length} pontos marcados no tapete.`;
+                if (pontosTapete.length < 3) {
+                    btnCalcular.classList.add('hidden');
+                    painelResultado.classList.add('hidden');
+                    btnPDF.classList.add('hidden');
+                } else if (estadoEtapa === 'FINALIZADO') {
+                    calcularMedidasComHomografia();
+                }
             }
             desenharTudo();
         });
@@ -372,11 +387,10 @@
             alternarModoInteracao('PAN');
             btnCalcular.classList.add('hidden');
             btnPDF.classList.remove('hidden');
-            instrucoes.innerText = "Medição concluída em mm! Você pode gerar o PDF.";
+            instrucoes.innerText = "Medição concluída em mm! Toque em 'Inserir Ponto' se desejar adicionar mais cantos.";
             desenharTudo();
         });
 
-        // Homografia com Folha A4 em mm
         function ordenarQuatroCantos(pts) {
             const cx = pts.reduce((a, b) => a + b.x, 0) / 4;
             const cy = pts.reduce((a, b) => a + b.y, 0) / 4;
@@ -389,11 +403,11 @@
 
             let wReal, hReal;
             if (distHorizontal >= distVertical) {
-                wReal = A4_LONGO_MM; // 297mm
-                hReal = A4_CURTO_MM; // 210mm
+                wReal = A4_LONGO_MM;
+                hReal = A4_CURTO_MM;
             } else {
-                wReal = A4_CURTO_MM; // 210mm
-                hReal = A4_LONGO_MM; // 297mm
+                wReal = A4_CURTO_MM;
+                hReal = A4_LONGO_MM;
             }
 
             const dst = [
@@ -450,7 +464,6 @@
 
             const pontosMetricos = pontosTapete.map(p => projetarPonto(p, H_matrix));
 
-            // Área calculada convertendo mm² para m²
             let areaMm2 = 0;
             for (let i = 0; i < pontosMetricos.length; i++) {
                 const j = (i + 1) % pontosMetricos.length;
@@ -624,7 +637,6 @@
 
         btnLimpar.addEventListener('click', limparMarcacoes);
 
-        // Novo Projeto: reseta tudo e retorna à tela inicial de captura
         btnNovoProjeto.addEventListener('click', () => {
             limparMarcacoes();
             inputFoto.value = '';
