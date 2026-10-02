@@ -70,10 +70,13 @@
                 Nova Foto
             </button>
             <button id="btnDesfazer" class="hidden bg-gray-600 active:bg-gray-500 text-white px-4 py-3 rounded-xl font-bold transition-colors">
-                ↩ Voltar Ponto
+                ↩ Voltar
             </button>
-            <button id="btnMarcarCartao" class="flex-1 min-w-[130px] bg-red-600 active:bg-red-500 text-white py-3 rounded-xl font-bold shadow-lg transition-colors">
-                1º Marcar Cartão (4 Pontos)
+            <button id="btnDetectarCartao" class="flex-1 min-w-[130px] bg-red-600 active:bg-red-500 text-white py-3 rounded-xl font-bold shadow-lg transition-colors">
+                1º Auto-Detectar Cartão
+            </button>
+            <button id="btnConfirmarCartao" class="hidden flex-1 min-w-[130px] bg-yellow-600 active:bg-yellow-500 text-white py-3 rounded-xl font-bold shadow-lg transition-colors">
+                Confirmar 4 Cantos
             </button>
             <button id="btnMarcarTapete" class="hidden flex-1 min-w-[130px] bg-blue-600 active:bg-blue-500 text-white py-3 rounded-xl font-bold shadow-lg transition-colors">
                 2º Marcar Tapete
@@ -84,8 +87,8 @@
             <button id="btnPDF" class="hidden flex-1 min-w-[130px] bg-red-600 active:bg-red-500 text-white py-3 rounded-xl font-bold shadow-lg transition-colors flex items-center justify-center gap-2">
                 <span>📄</span> Gerar PDF
             </button>
-            <button id="btnLimpar" class="hidden flex-1 min-w-[130px] bg-yellow-600 active:bg-yellow-500 text-white py-3 rounded-xl font-bold shadow-lg transition-colors">
-                Limpar Tudo
+            <button id="btnLimpar" class="hidden flex-1 min-w-[130px] bg-gray-700 active:bg-gray-600 text-white py-3 rounded-xl font-bold shadow-lg transition-colors">
+                Limpar
             </button>
         </div>
     </div>
@@ -106,7 +109,8 @@
         
         const btnTirarOutra = document.getElementById('btnTirarOutra');
         const btnDesfazer = document.getElementById('btnDesfazer');
-        const btnMarcarCartao = document.getElementById('btnMarcarCartao');
+        const btnDetectarCartao = document.getElementById('btnDetectarCartao');
+        const btnConfirmarCartao = document.getElementById('btnConfirmarCartao');
         const btnMarcarTapete = document.getElementById('btnMarcarTapete');
         const btnFinalizar = document.getElementById('btnFinalizar');
         const btnLimpar = document.getElementById('btnLimpar');
@@ -120,15 +124,15 @@
         const ctx = canvas.getContext('2d');
         const instrucoes = document.getElementById('instrucoes');
 
-        let pontosCartao = []; // Estritamente 4 pontos
+        let pontosCartao = [];
         let pontosTapete = [];
-        let modoAtual = null;
+        let modoAtual = null; 
         let tapeteFinalizado = false;
+        let indicePontoArrastando = -1;
         
-        const AREA_CARTAO_CM2 = 46.224; // Área padrão ISO 7810 ID-1 (8,56cm x 5,398cm)
+        const AREA_CARTAO_CM2 = 46.224;
         let cmPorPixelGlobal = 0;
         let infoLados = [];
-        let pontoMiraAtual = null;
 
         function atualizarZoom() {
             const zoom = sliderZoom.value;
@@ -202,89 +206,168 @@
             lupaCirurgica.classList.add('hidden');
         }
 
-        // Toque com mira precisa
-        canvas.addEventListener('touchstart', function(e) {
-            if (!modoAtual) return;
-            const touch = e.touches[0];
-            pontoMiraAtual = obterCoordenadasReais(touch.clientX, touch.clientY);
-            atualizarLupa(pontoMiraAtual);
-        }, { passive: true });
+        // --- ALGORITMO DE DETECÇÃO AUTOMÁTICA DO CARTÃO ---
+        function autoDetectarCartaoNoPonto(cx, cy) {
+            const wFoto = imagemCarregada.naturalWidth;
+            const hFoto = imagemCarregada.naturalHeight;
+            
+            // Área de busca ao redor do clique (raio adaptativo de 15% da imagem)
+            const raioBusca = Math.round(Math.min(wFoto, hFoto) * 0.18);
+            const x0 = Math.max(0, Math.round(cx - raioBusca));
+            const y0 = Math.max(0, Math.round(cy - raioBusca));
+            const x1 = Math.min(wFoto, Math.round(cx + raioBusca));
+            const y1 = Math.min(hFoto, Math.round(cy + raioBusca));
+            const bw = x1 - x0;
+            const bh = y1 - y0;
 
-        canvas.addEventListener('touchmove', function(e) {
-            if (!modoAtual) return;
-            const touch = e.touches[0];
-            pontoMiraAtual = obterCoordenadasReais(touch.clientX, touch.clientY);
-            atualizarLupa(pontoMiraAtual);
-        }, { passive: true });
+            const cTemp = document.createElement('canvas');
+            cTemp.width = bw;
+            cTemp.height = bh;
+            const ctxT = cTemp.getContext('2d');
+            ctxT.drawImage(imagemCarregada, x0, y0, bw, bh, 0, 0, bw, bh);
+            
+            const imgData = ctxT.getImageData(0, 0, bw, bh);
+            const data = imgData.data;
 
-        canvas.addEventListener('touchend', function() {
-            if (!modoAtual || !pontoMiraAtual) return;
-            registrarPonto(pontoMiraAtual.x, pontoMiraAtual.y);
-            pontoMiraAtual = null;
-            esconderLupa();
-        });
+            // Converter para escala de cinza e encontrar gradientes de borda
+            const cinza = new Uint8Array(bw * bh);
+            for (let i = 0; i < data.length; i += 4) {
+                cinza[i / 4] = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+            }
 
-        // Clique do mouse
-        canvas.addEventListener('click', function(event) {
-            if (!modoAtual) return;
-            const pt = obterCoordenadasReais(event.clientX, event.clientY);
-            registrarPonto(pt.x, pt.y);
-        });
-
-        function registrarPonto(x, y) {
-            if (modoAtual === 'cartao') {
-                if (pontosCartao.length < 4) {
-                    pontosCartao.push({ x, y });
-                    btnDesfazer.classList.remove('hidden');
-                    
-                    if (pontosCartao.length === 4) {
-                        modoAtual = null; // Trava o modo cartão
-                        btnMarcarTapete.classList.remove('hidden');
-                        instrucoes.innerText = "Cartão calibrado com 4 pontos! Clique em '2º Marcar Tapete'.";
-                        instrucoes.classList.replace('text-red-400', 'text-green-400');
-                    } else {
-                        instrucoes.innerText = `Ponto ${pontosCartao.length} de 4 marcado. Aponte o próximo canto do cartão.`;
+            // Sobel simples para detectar quinas com maior contraste
+            const edges = [];
+            const limiarSobel = 60;
+            for (let y = 2; y < bh - 2; y += 2) {
+                for (let x = 2; x < bw - 2; x += 2) {
+                    const idx = y * bw + x;
+                    const gx = (-cinza[idx - bw - 1] + cinza[idx - bw + 1]) +
+                               (-2 * cinza[idx - 1] + 2 * cinza[idx + 1]) +
+                               (-cinza[idx + bw - 1] + cinza[idx + bw + 1]);
+                    const gy = (-cinza[idx - bw - 1] - 2 * cinza[idx - bw] - cinza[idx - bw + 1]) +
+                               (cinza[idx + bw - 1] + 2 * cinza[idx + bw] + cinza[idx + bw + 1]);
+                    const mag = Math.hypot(gx, gy);
+                    if (mag > limiarSobel) {
+                        edges.push({ x: x + x0, y: y + y0 });
                     }
-                    desenharTudo();
                 }
+            }
+
+            if (edges.length < 20) {
+                // Fallback: cria retângulo padrão caso o piso não dê contraste suficiente
+                const wPadrao = raioBusca * 0.7;
+                const hPadrao = wPadrao * (53.98 / 85.6);
+                return [
+                    { x: cx - wPadrao / 2, y: cy - hPadrao / 2 },
+                    { x: cx + wPadrao / 2, y: cy - hPadrao / 2 },
+                    { x: cx + wPadrao / 2, y: cy + hPadrao / 2 },
+                    { x: cx - wPadrao / 2, y: cy + hPadrao / 2 }
+                ];
+            }
+
+            // Achar os extremos nas 4 diagonais (Top-Left, Top-Right, Bottom-Right, Bottom-Left)
+            let tl = edges[0], tr = edges[0], br = edges[0], bl = edges[0];
+            let minSum = Infinity, maxSum = -Infinity, minDiff = Infinity, maxDiff = -Infinity;
+
+            for (const p of edges) {
+                const s = p.x + p.y;
+                const d = p.x - p.y;
+                if (s < minSum) { minSum = s; tl = p; }
+                if (s > maxSum) { maxSum = s; br = p; }
+                if (d > maxDiff) { maxDiff = d; tr = p; }
+                if (d < minDiff) { minDiff = d; bl = p; }
+            }
+
+            return [tl, tr, br, bl];
+        }
+
+        function pontoMaisProximo(pt, lista, margemPx = 40) {
+            const rect = canvas.getBoundingClientRect();
+            const escala = canvas.width / rect.width;
+            const raioMax = margemPx * escala;
+            
+            for (let i = 0; i < lista.length; i++) {
+                if (Math.hypot(lista[i].x - pt.x, lista[i].y - pt.y) <= raioMax) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        // Interação de Toque e Mouse unificada
+        function iniciarInteracao(clientX, clientY) {
+            const pt = obterCoordenadasReais(clientX, clientY);
+
+            if (modoAtual === 'ajustar_cartao') {
+                indicePontoArrastando = pontoMaisProximo(pt, pontosCartao, 50);
+                if (indicePontoArrastando !== -1) {
+                    atualizarLupa(pontosCartao[indicePontoArrastando]);
+                }
+            } else if (modoAtual === 'detectar_cartao') {
+                pontosCartao = autoDetectarCartaoNoPonto(pt.x, pt.y);
+                modoAtual = 'ajustar_cartao';
+                btnDetectarCartao.classList.add('hidden');
+                btnConfirmarCartao.classList.remove('hidden');
+                btnDesfazer.classList.remove('hidden');
+                instrucoes.innerText = "Cartão detectado! Arraste os pinos para ajuste fino ou clique em 'Confirmar'.";
+                instrucoes.classList.replace('text-red-400', 'text-yellow-400');
+                desenharTudo();
             } else if (modoAtual === 'tapete') {
-                pontosTapete.push({ x, y });
+                pontosTapete.push(pt);
                 btnDesfazer.classList.remove('hidden');
                 instrucoes.innerText = `${pontosTapete.length} pontos marcados no tapete.`;
                 desenharTudo();
             }
         }
 
-        btnDesfazer.addEventListener('click', function() {
-            if (modoAtual === 'cartao' && pontosCartao.length > 0) {
-                pontosCartao.pop();
-                instrucoes.innerText = `Marque o canto ${pontosCartao.length + 1} de 4 do cartão.`;
-            } else if (modoAtual === 'tapete' && pontosTapete.length > 0) {
-                pontosTapete.pop();
-                instrucoes.innerText = pontosTapete.length > 0 ? `${pontosTapete.length} pontos marcados no tapete.` : "Marque os cantos do tapete.";
-            } else if (!modoAtual && pontosCartao.length === 4 && pontosTapete.length === 0) {
-                pontosCartao.pop();
-                modoAtual = 'cartao';
-                btnMarcarTapete.classList.add('hidden');
-                instrucoes.innerText = "Marque o 4º canto do cartão.";
-                instrucoes.classList.replace('text-green-400', 'text-red-400');
+        function moverInteracao(clientX, clientY) {
+            if (modoAtual === 'ajustar_cartao' && indicePontoArrastando !== -1) {
+                const pt = obterCoordenadasReais(clientX, clientY);
+                pontosCartao[indicePontoArrastando] = pt;
+                atualizarLupa(pt);
+                desenharTudo();
             }
-            if (pontosCartao.length === 0 && pontosTapete.length === 0) {
-                btnDesfazer.classList.add('hidden');
-            }
-            desenharTudo();
-        });
+        }
 
-        btnMarcarCartao.addEventListener('click', function() {
-            modoAtual = 'cartao';
-            pontosCartao = []; 
-            btnMarcarCartao.classList.add('hidden');
+        function finalizarInteracao() {
+            indicePontoArrastando = -1;
+            esconderLupa();
+        }
+
+        canvas.addEventListener('touchstart', (e) => {
+            const t = e.touches[0];
+            iniciarInteracao(t.clientX, t.clientY);
+        }, { passive: true });
+
+        canvas.addEventListener('touchmove', (e) => {
+            const t = e.touches[0];
+            moverInteracao(t.clientX, t.clientY);
+        }, { passive: true });
+
+        canvas.addEventListener('touchend', finalizarInteracao);
+
+        canvas.addEventListener('mousedown', (e) => iniciarInteracao(e.clientX, e.clientY));
+        canvas.addEventListener('mousemove', (e) => moverInteracao(e.clientX, e.clientY));
+        window.addEventListener('mouseup', finalizarInteracao);
+
+        btnDetectarCartao.addEventListener('click', function() {
+            modoAtual = 'detectar_cartao';
+            pontosCartao = [];
+            btnDetectarCartao.classList.add('hidden');
             btnTirarOutra.classList.add('hidden');
             btnLimpar.classList.remove('hidden');
-            btnDesfazer.classList.add('hidden');
-            instrucoes.innerText = "Aponte o 1º de 4 cantos do cartão (em sequência horária ou anti-horária).";
+            instrucoes.innerText = "Dê 1 toque no centro do cartão de crédito.";
             instrucoes.classList.add('text-red-400');
             instrucoes.classList.remove('text-gray-400', 'text-yellow-400', 'text-green-400');
+        });
+
+        btnConfirmarCartao.addEventListener('click', function() {
+            modoAtual = null;
+            btnConfirmarCartao.classList.add('hidden');
+            btnMarcarTapete.classList.remove('hidden');
+            instrucoes.innerText = "Cartão calibrado com 4 cantos! Clique em '2º Marcar Tapete'.";
+            instrucoes.classList.replace('text-yellow-400', 'text-green-400');
+            desenharTudo();
         });
 
         btnMarcarTapete.addEventListener('click', function() {
@@ -298,13 +381,24 @@
             instrucoes.classList.add('text-yellow-400');
         });
 
+        btnDesfazer.addEventListener('click', function() {
+            if (modoAtual === 'ajustar_cartao') {
+                pontosCartao = [];
+                modoAtual = 'detectar_cartao';
+                btnConfirmarCartao.classList.add('hidden');
+                btnDetectarCartao.classList.remove('hidden');
+                instrucoes.innerText = "Dê 1 toque no centro do cartão.";
+                instrucoes.classList.replace('text-yellow-400', 'text-red-400');
+            } else if (modoAtual === 'tapete' && pontosTapete.length > 0) {
+                pontosTapete.pop();
+                instrucoes.innerText = pontosTapete.length > 0 ? `${pontosTapete.length} pontos no tapete.` : "Marque os cantos do tapete.";
+            }
+            desenharTudo();
+        });
+
         btnFinalizar.addEventListener('click', function() {
             if (pontosTapete.length < 3) {
                 alert("Marque pelo menos 3 pontos no tapete!");
-                return;
-            }
-            if (pontosCartao.length !== 4) {
-                alert("O cartão precisa ter exatamente 4 pontos marcados para aferição!");
                 return;
             }
             modoAtual = null;
@@ -351,39 +445,35 @@
             const rect = canvas.getBoundingClientRect();
             const multiplicador = canvas.width / rect.width;
             
-            const raioPonto = 4.5 * multiplicador;
+            const raioPonto = 5 * multiplicador;
             const espessuraFina = 1.5 * multiplicador;
             const espessuraGrossa = 3 * multiplicador;
             const tamanhoFonte = 13 * multiplicador;
             const paddingTexto = 5 * multiplicador;
 
-            // 1. GABARITO CARTÃO (4 PONTOS OBRIGATÓRIOS)
+            // 1. GABARITO CARTÃO
             if (pontosCartao.length > 0) {
-                if (pontosCartao.length > 1) {
-                    ctx.beginPath();
-                    ctx.moveTo(pontosCartao[0].x, pontosCartao[0].y);
-                    for (let i = 1; i < pontosCartao.length; i++) {
-                        ctx.lineTo(pontosCartao[i].x, pontosCartao[i].y);
-                    }
-                    if (pontosCartao.length === 4) { 
-                        ctx.lineTo(pontosCartao[0].x, pontosCartao[0].y);
-                        ctx.fillStyle = 'rgba(239, 68, 68, 0.25)';
-                        ctx.fill();
-                    }
-                    ctx.strokeStyle = '#ef4444';
-                    ctx.lineWidth = espessuraGrossa;
-                    ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(pontosCartao[0].x, pontosCartao[0].y);
+                for (let i = 1; i < pontosCartao.length; i++) {
+                    ctx.lineTo(pontosCartao[i].x, pontosCartao[i].y);
                 }
+                ctx.lineTo(pontosCartao[0].x, pontosCartao[0].y);
+                ctx.fillStyle = 'rgba(239, 68, 68, 0.25)';
+                ctx.fill();
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = espessuraGrossa;
+                ctx.stroke();
+
                 pontosCartao.forEach((p, idx) => {
                     ctx.beginPath();
                     ctx.arc(p.x, p.y, raioPonto, 0, 2 * Math.PI); 
-                    ctx.fillStyle = '#ef4444';
+                    ctx.fillStyle = (idx === indicePontoArrastando) ? '#fbbf24' : '#ef4444';
                     ctx.fill();
                     ctx.strokeStyle = 'white';
                     ctx.lineWidth = espessuraFina;
                     ctx.stroke();
 
-                    // Rótulo C1 a C4
                     ctx.fillStyle = '#ef4444';
                     ctx.font = `bold ${tamanhoFonte}px Arial`;
                     ctx.fillText(`C${idx + 1}`, p.x + (raioPonto * 1.5), p.y - (raioPonto * 1.5));
@@ -568,13 +658,14 @@
             infoLados = [];
             modoAtual = null;
             tapeteFinalizado = false;
-            pontoMiraAtual = null;
+            indicePontoArrastando = -1;
             esconderLupa();
             
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             painelResultado.classList.add('hidden');
             
-            btnMarcarCartao.classList.remove('hidden');
+            btnDetectarCartao.classList.remove('hidden');
+            btnConfirmarCartao.classList.add('hidden');
             btnTirarOutra.classList.remove('hidden');
             btnMarcarTapete.classList.add('hidden');
             btnFinalizar.classList.add('hidden');
@@ -583,7 +674,7 @@
             btnDesfazer.classList.add('hidden');
             
             instrucoes.innerText = "Coloque o cartão ao lado e tire a foto.";
-            instrucoes.classList.remove('text-green-400', 'text-yellow-400', 'text-red-400', 'text-white');
+            instrucoes.classList.remove('text-green-400', 'text-yellow-400', 'text-red-400');
             instrucoes.classList.add('text-gray-400');
         }
     </script>
