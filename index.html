@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Medidor de Tapetes com Homografia</title>
+    <title>Medidor de Tapetes com Folha A4</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
@@ -18,7 +18,7 @@
 
     <div class="w-full max-w-md mx-auto pt-2 pb-3 border-b border-gray-800 text-center shrink-0">
         <h1 class="text-2xl font-bold text-blue-400">Medidor de Tapetes</h1>
-        <p class="text-xs text-gray-400 mt-1 font-medium" id="instrucoes">Carregue a foto com o cartão ao lado do tapete</p>
+        <p class="text-xs text-gray-400 mt-1 font-medium" id="instrucoes">Coloque uma Folha A4 sobre o piso ao lado do tapete</p>
     </div>
 
     <!-- Tela 1: Câmera -->
@@ -33,16 +33,16 @@
     <!-- Tela 2: Edição -->
     <div id="tela-foto" class="hidden flex-col items-center w-full max-w-md mx-auto flex-1">
         
-        <!-- Barra de Controle de Zoom e Modo -->
+        <!-- Controle de Zoom -->
         <div class="flex items-center gap-3 my-2 w-full bg-gray-800 p-2.5 rounded-xl border border-gray-700 shrink-0">
             <span class="text-lg">🔍</span>
             <input type="range" id="sliderZoom" min="100" max="800" step="10" value="100" class="flex-1 h-2 bg-blue-600 rounded-lg appearance-none cursor-pointer">
             <span id="zoomValor" class="text-xs font-bold w-12 text-right text-blue-400">100%</span>
         </div>
 
-        <!-- Seletor de Modo: Navegação vs Marcação -->
+        <!-- Seletor: Mover vs Inserir -->
         <div class="grid grid-cols-2 gap-2 w-full mb-2 shrink-0">
-            <button id="btnModoPan" class="py-2.5 px-3 rounded-xl font-bold text-sm bg-blue-600 border border-blue-400 flex items-center justify-center gap-2">
+            <button id="btnModoPan" class="py-2.5 px-3 rounded-xl font-bold text-sm bg-blue-600 border border-blue-400 text-white flex items-center justify-center gap-2">
                 <span>✋</span> Mover Foto
             </button>
             <button id="btnModoMarcar" class="py-2.5 px-3 rounded-xl font-bold text-sm bg-gray-800 border border-gray-700 text-gray-300 flex items-center justify-center gap-2">
@@ -70,18 +70,18 @@
 
         <!-- Resultados -->
         <div id="painelResultado" class="hidden w-full bg-green-950 border border-green-500 rounded-xl p-3 mb-3 text-center shadow-lg">
-            <h2 class="text-green-300 font-bold text-xs uppercase tracking-wide">Área com Correção de Perspectiva</h2>
+            <h2 class="text-green-300 font-bold text-xs uppercase tracking-wide">Área com Perspectiva Corrigida (Gabarito A4)</h2>
             <p id="valorArea" class="text-3xl font-black text-white my-1">0.00 m²</p>
             <div id="listaMedidas" class="text-xs text-gray-200 grid grid-cols-2 gap-1.5 mt-2 pt-2 border-t border-green-800 text-left"></div>
         </div>
 
-        <!-- Ações do Fluxo -->
+        <!-- Botões -->
         <div class="flex flex-wrap gap-2 w-full shrink-0 pb-4">
             <button id="btnDesfazer" class="hidden bg-gray-700 active:bg-gray-600 text-white px-4 py-3 rounded-xl font-bold text-sm">
                 ↩ Desfazer
             </button>
             <button id="btnAcaoPrincipal" class="flex-1 bg-red-600 active:bg-red-500 text-white py-3 rounded-xl font-bold shadow-lg text-sm">
-                1º Marcar Cartão (0/4)
+                1º Marcar Folha A4 (0/4)
             </button>
             <button id="btnCalcular" class="hidden flex-1 bg-green-600 active:bg-green-500 text-white py-3 rounded-xl font-bold shadow-lg text-sm">
                 Calcular Medidas
@@ -124,18 +124,17 @@
         const valorArea = document.getElementById('valorArea');
         const listaMedidas = document.getElementById('listaMedidas');
 
-        // Estado da aplicação
-        let estadoEtapa = 'CARTAO'; // 'CARTAO', 'TAPETE', 'FINALIZADO'
-        let modoInteracao = 'PAN';  // 'PAN' (arrastar) ou 'MARCAR' (mira)
-        let pontosCartao = [];      // 4 cantos em sequência horária: TL, TR, BR, BL
+        let estadoEtapa = 'A4'; // 'A4', 'TAPETE', 'FINALIZADO'
+        let modoInteracao = 'PAN';
+        let pontosA4 = [];      // 4 cantos da Folha A4
         let pontosTapete = [];
         let infoLados = [];
         let pontoArrastando = null;
-        let H_matrix = null;        // Matriz de Homografia 3x3
+        let H_matrix = null;
 
-        // Cartão de crédito ISO ID-1 em metros
-        const LARGURA_CARTAO_M = 0.08560; // 85.60 mm
-        const ALTURA_CARTAO_M = 0.05398;  // 53.98 mm
+        // DIMENSÕES OFICIAIS FOLHA A4 (ISO 216) EM METROS
+        const A4_CURTO_M = 0.210; // 210 mm
+        const A4_LONGO_M = 0.297; // 297 mm
 
         function alternarModoInteracao(novoModo) {
             modoInteracao = novoModo;
@@ -204,7 +203,6 @@
         }
         function esconderLupa() { lupaCirurgica.classList.add('hidden'); }
 
-        // Achar ponto existente para arrastar ajuste fino
         function encontrarPontoProximo(pt, lista, raioMax = 40) {
             const rect = canvas.getBoundingClientRect();
             const escala = canvas.width / rect.width;
@@ -219,11 +217,11 @@
         function lidarInicio(clientX, clientY) {
             const pt = obterCoordReal(clientX, clientY);
 
-            // 1. Tentar pegar ponto existente para ajuste
-            let idx = encontrarPontoProximo(pt, pontosCartao);
+            // Ajuste fino: arrastar pino já inserido
+            let idx = encontrarPontoProximo(pt, pontosA4);
             if (idx !== -1) {
-                pontoArrastando = { lista: pontosCartao, idx };
-                atualizarLupa(pontosCartao[idx]);
+                pontoArrastando = { lista: pontosA4, idx };
+                atualizarLupa(pontosA4[idx]);
                 return;
             }
             idx = encontrarPontoProximo(pt, pontosTapete);
@@ -233,11 +231,11 @@
                 return;
             }
 
-            // 2. Se estiver em modo MARCAR, insere ponto novo
+            // Inserir ponto novo (somente se estiver no modo MARCAR)
             if (modoInteracao === 'MARCAR') {
-                if (estadoEtapa === 'CARTAO' && pontosCartao.length < 4) {
-                    pontosCartao.push(pt);
-                    atualizarFluxoCartao();
+                if (estadoEtapa === 'A4' && pontosA4.length < 4) {
+                    pontosA4.push(pt);
+                    atualizarFluxoA4();
                 } else if (estadoEtapa === 'TAPETE') {
                     pontosTapete.push(pt);
                     instrucoes.innerText = `${pontosTapete.length} pontos marcados no tapete.`;
@@ -280,43 +278,42 @@
         canvas.addEventListener('mousemove', (e) => lidarMovimento(e.clientX, e.clientY));
         window.addEventListener('mouseup', lidarFim);
 
-        function atualizarFluxoCartao() {
-            const qtd = pontosCartao.length;
-            btnAcaoPrincipal.innerText = `1º Marcar Cartão (${qtd}/4)`;
+        function atualizarFluxoA4() {
+            const qtd = pontosA4.length;
+            btnAcaoPrincipal.innerText = `1º Marcar Folha A4 (${qtd}/4)`;
             if (qtd === 0) {
-                instrucoes.innerText = "Toque nos 4 cantos do cartão em ordem horária (C1 topo-esq, C2 topo-dir, etc).";
+                instrucoes.innerText = "Toque nos 4 cantos da Folha A4 em ordem contínua (C1, C2, C3, C4).";
             } else if (qtd < 4) {
-                instrucoes.innerText = `Marque o canto C${qtd + 1} do cartão.`;
+                instrucoes.innerText = `Marque o canto C${qtd + 1} da folha A4.`;
             } else {
-                instrucoes.innerText = "Cartão completo! Calibre a perspectiva clicando em '2º Marcar Tapete'.";
+                instrucoes.innerText = "Folha A4 marcada! Calibre a perspectiva clicando em '2º Marcar Tapete'.";
                 btnAcaoPrincipal.className = "flex-1 bg-blue-600 active:bg-blue-500 text-white py-3 rounded-xl font-bold shadow-lg text-sm";
                 btnAcaoPrincipal.innerText = "2º Marcar Tapete";
             }
         }
 
         btnAcaoPrincipal.addEventListener('click', () => {
-            if (estadoEtapa === 'CARTAO') {
-                if (pontosCartao.length !== 4) {
+            if (estadoEtapa === 'A4') {
+                if (pontosA4.length !== 4) {
                     alternarModoInteracao('MARCAR');
                     return;
                 }
-                // Ordenar pontos do cartão no sentido horário garantido
-                pontosCartao = ordenarQuatroCantos(pontosCartao);
-                H_matrix = calcularMatrizHomografia(pontosCartao, LARGURA_CARTAO_M, ALTURA_CARTAO_M);
+                pontosA4 = ordenarQuatroCantos(pontosA4);
+                H_matrix = calcularMatrizHomografiaA4(pontosA4);
                 
                 estadoEtapa = 'TAPETE';
                 btnAcaoPrincipal.classList.add('hidden');
                 btnCalcular.classList.remove('hidden');
-                instrucoes.innerText = "Contorne o tapete inserindo os pontos dos cantos.";
+                instrucoes.innerText = "Marque os cantos do tapete contornando o perímetro.";
                 alternarModoInteracao('MARCAR');
                 desenharTudo();
             }
         });
 
         btnDesfazer.addEventListener('click', () => {
-            if (estadoEtapa === 'CARTAO' && pontosCartao.length > 0) {
-                pontosCartao.pop();
-                atualizarFluxoCartao();
+            if (estadoEtapa === 'A4' && pontosA4.length > 0) {
+                pontosA4.pop();
+                atualizarFluxoA4();
             } else if (estadoEtapa === 'TAPETE' && pontosTapete.length > 0) {
                 pontosTapete.pop();
             }
@@ -333,23 +330,33 @@
             alternarModoInteracao('PAN');
             btnCalcular.classList.add('hidden');
             btnPDF.classList.remove('hidden');
-            instrucoes.innerText = "Perspectiva corrigida com sucesso! Você pode gerar o PDF.";
+            instrucoes.innerText = "Cálculo concluído com retificação A4! Você pode gerar o PDF.";
             desenharTudo();
         });
 
         // ==========================================
-        // ÁLGEBRA LINEAR: HOMOGRAFIA PERSPECTIVA REAL
+        // GEOMETRIA PROJETIVA / HOMOGRAFIA COM A4
         // ==========================================
         function ordenarQuatroCantos(pts) {
-            // Centroide
             const cx = pts.reduce((a, b) => a + b.x, 0) / 4;
             const cy = pts.reduce((a, b) => a + b.y, 0) / 4;
-            // Ordenar por ângulo polar
             return [...pts].sort((a, b) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx));
         }
 
-        // Calcula Matriz 3x3 que mapeia (x_foto, y_foto) para (X_real_metros, Y_real_metros)
-        function calcularMatrizHomografia(srcPts, wReal, hReal) {
+        function calcularMatrizHomografiaA4(srcPts) {
+            // Determina se a folha está deitada ou em pé na imagem
+            const distHorizontal = Math.hypot(srcPts[1].x - srcPts[0].x, srcPts[1].y - srcPts[0].y);
+            const distVertical = Math.hypot(srcPts[3].x - srcPts[0].x, srcPts[3].y - srcPts[0].y);
+
+            let wReal, hReal;
+            if (distHorizontal >= distVertical) {
+                wReal = A4_LONGO_M; // Paisagem: 297mm largura x 210mm altura
+                hReal = A4_CURTO_M;
+            } else {
+                wReal = A4_CURTO_M; // Retrato: 210mm largura x 297mm altura
+                hReal = A4_LONGO_M;
+            }
+
             const dst = [
                 { x: 0, y: 0 },
                 { x: wReal, y: 0 },
@@ -365,7 +372,7 @@
                 A.push([0, 0, 0, -xs, -ys, -1, xs * yd, ys * yd, yd]);
             }
 
-            // Eliminação Gauss-Jordan para resolver o sistema
+            // Gauss-Jordan
             for (let i = 0; i < 8; i++) {
                 let maxRow = i;
                 for (let k = i + 1; k < 8; k++) {
@@ -392,22 +399,20 @@
             return h;
         }
 
-        // Projeta ponto da imagem no plano métrico real corrigido
         function projetarPonto(pt, H) {
-            const x = pt.x, y = pt.y;
-            const w = H[6] * x + H[7] * y + H[8];
+            const w = H[6] * pt.x + H[7] * pt.y + H[8];
             return {
-                x: (H[0] * x + H[1] * y + H[2]) / w,
-                y: (H[3] * x + H[4] * y + H[5]) / w
+                x: (H[0] * pt.x + H[1] * pt.y + H[2]) / w,
+                y: (H[3] * pt.x + H[4] * pt.y + H[5]) / w
             };
         }
 
         function calcularMedidasComHomografia() {
-            if (!H_matrix) H_matrix = calcularMatrizHomografia(pontosCartao, LARGURA_CARTAO_M, ALTURA_CARTAO_M);
+            if (!H_matrix) H_matrix = calcularMatrizHomografiaA4(pontosA4);
 
             const pontosMetricos = pontosTapete.map(p => projetarPonto(p, H_matrix));
 
-            // Área métrica real (Gauss)
+            // Área métrica real retificada
             let areaM2 = 0;
             for (let i = 0; i < pontosMetricos.length; i++) {
                 const j = (i + 1) % pontosMetricos.length;
@@ -447,13 +452,13 @@
             const espessura = 2.5 * mult;
             const fontTam = 13 * mult;
 
-            // 1. Cartão de Aferição
-            if (pontosCartao.length > 0) {
+            // 1. Folha A4
+            if (pontosA4.length > 0) {
                 ctx.beginPath();
-                ctx.moveTo(pontosCartao[0].x, pontosCartao[0].y);
-                for (let i = 1; i < pontosCartao.length; i++) ctx.lineTo(pontosCartao[i].x, pontosCartao[i].y);
-                if (pontosCartao.length === 4) {
-                    ctx.lineTo(pontosCartao[0].x, pontosCartao[0].y);
+                ctx.moveTo(pontosA4[0].x, pontosA4[0].y);
+                for (let i = 1; i < pontosA4.length; i++) ctx.lineTo(pontosA4[i].x, pontosA4[i].y);
+                if (pontosA4.length === 4) {
+                    ctx.lineTo(pontosA4[0].x, pontosA4[0].y);
                     ctx.fillStyle = 'rgba(239, 68, 68, 0.25)';
                     ctx.fill();
                 }
@@ -461,7 +466,7 @@
                 ctx.lineWidth = espessura;
                 ctx.stroke();
 
-                pontosCartao.forEach((p, idx) => {
+                pontosA4.forEach((p, idx) => {
                     ctx.beginPath();
                     ctx.arc(p.x, p.y, raio, 0, 2 * Math.PI);
                     ctx.fillStyle = '#ef4444';
@@ -505,7 +510,7 @@
                 });
             }
 
-            // 3. Medidas com Perspectiva Retificada
+            // 3. Medidas Retificadas
             if (estadoEtapa === 'FINALIZADO') {
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
@@ -529,7 +534,7 @@
             const doc = new jsPDF();
             doc.setFont("helvetica", "bold");
             doc.setFontSize(20);
-            doc.text("Medição de Tapete (Perspectiva Corrigida)", 105, 20, null, null, "center");
+            doc.text("Medição de Tapete (Gabarito A4)", 105, 20, null, null, "center");
 
             const maxW = 1600;
             const scale = canvas.width > maxW ? maxW / canvas.width : 1;
@@ -559,15 +564,15 @@
                 posY += 7;
             });
 
-            doc.save('Medicao-Tapete-Retificado.pdf');
+            doc.save('Medicao-Tapete-A4.pdf');
         });
 
         function resetar() {
-            pontosCartao = [];
+            pontosA4 = [];
             pontosTapete = [];
             infoLados = [];
             H_matrix = null;
-            estadoEtapa = 'CARTAO';
+            estadoEtapa = 'A4';
             alternarModoInteracao('PAN');
             esconderLupa();
             painelResultado.classList.add('hidden');
@@ -576,8 +581,8 @@
             btnDesfazer.classList.add('hidden');
             btnAcaoPrincipal.classList.remove('hidden');
             btnAcaoPrincipal.className = "flex-1 bg-red-600 active:bg-red-500 text-white py-3 rounded-xl font-bold shadow-lg text-sm";
-            btnAcaoPrincipal.innerText = "1º Marcar Cartão (0/4)";
-            instrucoes.innerText = "Toque nos 4 cantos do cartão em ordem horária.";
+            btnAcaoPrincipal.innerText = "1º Marcar Folha A4 (0/4)";
+            instrucoes.innerText = "Toque nos 4 cantos da Folha A4 em ordem horária.";
             ctx.clearRect(0, 0, canvas.width, canvas.height);
         }
         btnReiniciar.addEventListener('click', resetar);
