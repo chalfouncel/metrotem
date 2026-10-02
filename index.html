@@ -33,11 +33,12 @@
     <!-- Tela 2: Edição -->
     <div id="tela-foto" class="hidden flex-col items-center w-full max-w-md mx-auto flex-1">
         
-        <!-- Controle de Zoom -->
-        <div class="flex items-center gap-3 my-2 w-full bg-gray-800 p-2.5 rounded-xl border border-gray-700 shrink-0">
-            <span class="text-lg">🔍</span>
-            <input type="range" id="sliderZoom" min="100" max="800" step="10" value="100" class="flex-1 h-2 bg-blue-600 rounded-lg appearance-none cursor-pointer">
-            <span id="zoomValor" class="text-xs font-bold w-12 text-right text-blue-400">100%</span>
+        <!-- Indicador de Zoom e Modo -->
+        <div class="flex items-center justify-between w-full my-2 px-1 text-xs text-gray-400 shrink-0">
+            <span>Zoom (use pinça com 2 dedos): <strong id="zoomValor" class="text-blue-400 font-bold">100%</strong></span>
+            <button id="btnNovoProjeto" class="bg-gray-800 border border-gray-700 hover:bg-gray-700 text-gray-200 px-3 py-1.5 rounded-lg text-xs font-semibold">
+                ➕ Novo Projeto
+            </button>
         </div>
 
         <!-- Seletor: Mover vs Inserir -->
@@ -50,8 +51,8 @@
             </button>
         </div>
 
-        <!-- Viewport da Imagem -->
-        <div id="containerScroll" class="w-full h-[50vh] max-h-[440px] bg-black rounded-lg overflow-auto border-2 border-gray-700 shadow-2xl relative mb-3 touch-pan-x touch-pan-y">
+        <!-- Viewport da Imagem com suporte à Pinça -->
+        <div id="containerScroll" class="w-full h-[52vh] max-h-[460px] bg-black rounded-lg overflow-auto border-2 border-gray-700 shadow-2xl relative mb-3 touch-pan-x touch-pan-y">
             <div id="containerImagem" class="relative w-full origin-top-left">
                 <img id="imagemCarregada" class="w-full h-auto block pointer-events-none pixelated" alt="Foto">
                 <canvas id="camadaDesenho" class="absolute top-0 left-0 w-full h-full"></canvas>
@@ -68,14 +69,14 @@
             </div>
         </div>
 
-        <!-- Resultados -->
+        <!-- Resultados em mm -->
         <div id="painelResultado" class="hidden w-full bg-green-950 border border-green-500 rounded-xl p-3 mb-3 text-center shadow-lg">
-            <h2 class="text-green-300 font-bold text-xs uppercase tracking-wide">Área com Perspectiva Corrigida (Gabarito A4)</h2>
+            <h2 class="text-green-300 font-bold text-xs uppercase tracking-wide">Área com Perspectiva Corrigida</h2>
             <p id="valorArea" class="text-3xl font-black text-white my-1">0.00 m²</p>
             <div id="listaMedidas" class="text-xs text-gray-200 grid grid-cols-2 gap-1.5 mt-2 pt-2 border-t border-green-800 text-left"></div>
         </div>
 
-        <!-- Botões -->
+        <!-- Botões de Ação -->
         <div class="flex flex-wrap gap-2 w-full shrink-0 pb-4">
             <button id="btnDesfazer" class="hidden bg-gray-700 active:bg-gray-600 text-white px-4 py-3 rounded-xl font-bold text-sm">
                 ↩ Desfazer
@@ -89,7 +90,7 @@
             <button id="btnPDF" class="hidden flex-1 bg-red-700 active:bg-red-600 text-white py-3 rounded-xl font-bold shadow-lg text-sm flex items-center justify-center gap-2">
                 <span>📄</span> Gerar PDF
             </button>
-            <button id="btnReiniciar" class="bg-gray-800 text-gray-300 px-3 py-3 rounded-xl font-semibold text-xs border border-gray-700">
+            <button id="btnLimpar" class="bg-gray-800 text-gray-300 px-3 py-3 rounded-xl font-semibold text-xs border border-gray-700">
                 Limpar
             </button>
         </div>
@@ -101,18 +102,18 @@
         const telaFoto = document.getElementById('tela-foto');
         const imagemCarregada = document.getElementById('imagemCarregada');
         
-        const sliderZoom = document.getElementById('sliderZoom');
         const zoomValor = document.getElementById('zoomValor');
         const containerImagem = document.getElementById('containerImagem');
         const containerScroll = document.getElementById('containerScroll');
         
         const btnModoPan = document.getElementById('btnModoPan');
         const btnModoMarcar = document.getElementById('btnModoMarcar');
+        const btnNovoProjeto = document.getElementById('btnNovoProjeto');
         const btnAcaoPrincipal = document.getElementById('btnAcaoPrincipal');
         const btnCalcular = document.getElementById('btnCalcular');
         const btnDesfazer = document.getElementById('btnDesfazer');
         const btnPDF = document.getElementById('btnPDF');
-        const btnReiniciar = document.getElementById('btnReiniciar');
+        const btnLimpar = document.getElementById('btnLimpar');
 
         const lupaCirurgica = document.getElementById('lupaCirurgica');
         const canvasLupa = document.getElementById('canvasLupa');
@@ -126,15 +127,65 @@
 
         let estadoEtapa = 'A4'; // 'A4', 'TAPETE', 'FINALIZADO'
         let modoInteracao = 'PAN';
-        let pontosA4 = [];      // 4 cantos da Folha A4
+        let pontosA4 = [];
         let pontosTapete = [];
         let infoLados = [];
         let pontoArrastando = null;
         let H_matrix = null;
 
-        // DIMENSÕES OFICIAIS FOLHA A4 (ISO 216) EM METROS
-        const A4_CURTO_M = 0.210; // 210 mm
-        const A4_LONGO_M = 0.297; // 297 mm
+        // Dimensões A4 em milímetros
+        const A4_CURTO_MM = 210;
+        const A4_LONGO_MM = 297;
+
+        // Controle de Zoom por Pinça
+        let zoomAtual = 100;
+        let distanciaInicialPinca = 0;
+        let zoomInicialPinca = 100;
+
+        function aplicarZoom(novoZoom) {
+            zoomAtual = Math.max(100, Math.min(800, novoZoom));
+            zoomValor.innerText = Math.round(zoomAtual) + '%';
+            containerImagem.style.width = zoomAtual + '%';
+            requestAnimationFrame(desenharTudo);
+        }
+
+        // Pinça com 2 dedos
+        containerScroll.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2) {
+                distanciaInicialPinca = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+                zoomInicialPinca = zoomAtual;
+            }
+        }, { passive: true });
+
+        containerScroll.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 2 && distanciaInicialPinca > 0) {
+                const distAtual = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+                const fator = distAtual / distanciaInicialPinca;
+                aplicarZoom(zoomInicialPinca * fator);
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        containerScroll.addEventListener('touchend', (e) => {
+            if (e.touches.length < 2) {
+                distanciaInicialPinca = 0;
+            }
+        });
+
+        // Zoom por scroll do mouse no desktop
+        containerScroll.addEventListener('wheel', (e) => {
+            if (e.ctrlKey || modoInteracao === 'PAN') {
+                e.preventDefault();
+                const delta = e.deltaY < 0 ? 15 : -15;
+                aplicarZoom(zoomAtual + delta);
+            }
+        }, { passive: false });
 
         function alternarModoInteracao(novoModo) {
             modoInteracao = novoModo;
@@ -153,14 +204,6 @@
         btnModoPan.addEventListener('click', () => alternarModoInteracao('PAN'));
         btnModoMarcar.addEventListener('click', () => alternarModoInteracao('MARCAR'));
 
-        function atualizarZoom() {
-            const zoom = sliderZoom.value;
-            zoomValor.innerText = zoom + '%';
-            containerImagem.style.width = zoom + '%';
-            requestAnimationFrame(desenharTudo);
-        }
-        sliderZoom.addEventListener('input', atualizarZoom);
-
         inputFoto.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (file) {
@@ -174,9 +217,8 @@
         imagemCarregada.onload = () => {
             telaCamera.classList.replace('flex', 'hidden');
             telaFoto.classList.replace('hidden', 'flex');
-            sliderZoom.value = 100;
-            atualizarZoom();
-            resetar();
+            aplicarZoom(100);
+            limparMarcacoes();
             setTimeout(() => {
                 canvas.width = imagemCarregada.naturalWidth;
                 canvas.height = imagemCarregada.naturalHeight;
@@ -217,7 +259,6 @@
         function lidarInicio(clientX, clientY) {
             const pt = obterCoordReal(clientX, clientY);
 
-            // Ajuste fino: arrastar pino já inserido
             let idx = encontrarPontoProximo(pt, pontosA4);
             if (idx !== -1) {
                 pontoArrastando = { lista: pontosA4, idx };
@@ -231,7 +272,6 @@
                 return;
             }
 
-            // Inserir ponto novo (somente se estiver no modo MARCAR)
             if (modoInteracao === 'MARCAR') {
                 if (estadoEtapa === 'A4' && pontosA4.length < 4) {
                     pontosA4.push(pt);
@@ -262,15 +302,17 @@
         }
 
         canvas.addEventListener('touchstart', (e) => {
-            const t = e.touches[0];
-            lidarInicio(t.clientX, t.clientY);
-            if (modoInteracao === 'MARCAR' || pontoArrastando) e.preventDefault();
+            if (e.touches.length === 1) {
+                lidarInicio(e.touches[0].clientX, e.touches[0].clientY);
+                if (modoInteracao === 'MARCAR' || pontoArrastando) e.preventDefault();
+            }
         }, { passive: false });
 
         canvas.addEventListener('touchmove', (e) => {
-            const t = e.touches[0];
-            lidarMovimento(t.clientX, t.clientY);
-            if (modoInteracao === 'MARCAR' || pontoArrastando) e.preventDefault();
+            if (e.touches.length === 1 && pontoArrastando) {
+                lidarMovimento(e.touches[0].clientX, e.touches[0].clientY);
+                e.preventDefault();
+            }
         }, { passive: false });
 
         canvas.addEventListener('touchend', lidarFim);
@@ -282,7 +324,7 @@
             const qtd = pontosA4.length;
             btnAcaoPrincipal.innerText = `1º Marcar Folha A4 (${qtd}/4)`;
             if (qtd === 0) {
-                instrucoes.innerText = "Toque nos 4 cantos da Folha A4 em ordem contínua (C1, C2, C3, C4).";
+                instrucoes.innerText = "Toque nos 4 cantos da Folha A4 em ordem contínua (C1 a C4).";
             } else if (qtd < 4) {
                 instrucoes.innerText = `Marque o canto C${qtd + 1} da folha A4.`;
             } else {
@@ -330,13 +372,11 @@
             alternarModoInteracao('PAN');
             btnCalcular.classList.add('hidden');
             btnPDF.classList.remove('hidden');
-            instrucoes.innerText = "Cálculo concluído com retificação A4! Você pode gerar o PDF.";
+            instrucoes.innerText = "Medição concluída em mm! Você pode gerar o PDF.";
             desenharTudo();
         });
 
-        // ==========================================
-        // GEOMETRIA PROJETIVA / HOMOGRAFIA COM A4
-        // ==========================================
+        // Homografia com Folha A4 em mm
         function ordenarQuatroCantos(pts) {
             const cx = pts.reduce((a, b) => a + b.x, 0) / 4;
             const cy = pts.reduce((a, b) => a + b.y, 0) / 4;
@@ -344,17 +384,16 @@
         }
 
         function calcularMatrizHomografiaA4(srcPts) {
-            // Determina se a folha está deitada ou em pé na imagem
             const distHorizontal = Math.hypot(srcPts[1].x - srcPts[0].x, srcPts[1].y - srcPts[0].y);
             const distVertical = Math.hypot(srcPts[3].x - srcPts[0].x, srcPts[3].y - srcPts[0].y);
 
             let wReal, hReal;
             if (distHorizontal >= distVertical) {
-                wReal = A4_LONGO_M; // Paisagem: 297mm largura x 210mm altura
-                hReal = A4_CURTO_M;
+                wReal = A4_LONGO_MM; // 297mm
+                hReal = A4_CURTO_MM; // 210mm
             } else {
-                wReal = A4_CURTO_M; // Retrato: 210mm largura x 297mm altura
-                hReal = A4_LONGO_M;
+                wReal = A4_CURTO_MM; // 210mm
+                hReal = A4_LONGO_MM; // 297mm
             }
 
             const dst = [
@@ -372,7 +411,6 @@
                 A.push([0, 0, 0, -xs, -ys, -1, xs * yd, ys * yd, yd]);
             }
 
-            // Gauss-Jordan
             for (let i = 0; i < 8; i++) {
                 let maxRow = i;
                 for (let k = i + 1; k < 8; k++) {
@@ -412,37 +450,35 @@
 
             const pontosMetricos = pontosTapete.map(p => projetarPonto(p, H_matrix));
 
-            // Área métrica real retificada
-            let areaM2 = 0;
+            // Área calculada convertendo mm² para m²
+            let areaMm2 = 0;
             for (let i = 0; i < pontosMetricos.length; i++) {
                 const j = (i + 1) % pontosMetricos.length;
-                areaM2 += (pontosMetricos[i].x * pontosMetricos[j].y) - (pontosMetricos[j].x * pontosMetricos[i].y);
+                areaMm2 += (pontosMetricos[i].x * pontosMetricos[j].y) - (pontosMetricos[j].x * pontosMetricos[i].y);
             }
-            areaM2 = Math.abs(areaM2 / 2);
+            areaMm2 = Math.abs(areaMm2 / 2);
+            const areaM2 = areaMm2 / 1000000;
             valorArea.innerText = areaM2.toFixed(2) + " m²";
 
             infoLados = [];
             listaMedidas.innerHTML = '';
             for (let i = 0; i < pontosMetricos.length; i++) {
                 const j = (i + 1) % pontosMetricos.length;
-                const distM = Math.hypot(pontosMetricos[j].x - pontosMetricos[i].x, pontosMetricos[j].y - pontosMetricos[i].y);
+                const distMm = Math.round(Math.hypot(pontosMetricos[j].x - pontosMetricos[i].x, pontosMetricos[j].y - pontosMetricos[i].y));
                 
                 infoLados.push({
                     p1: pontosTapete[i],
                     p2: pontosTapete[j],
                     num1: i + 1,
                     num2: j + 1,
-                    medida: distM.toFixed(2)
+                    medida: distMm
                 });
 
-                listaMedidas.innerHTML += `<div><span class="font-bold text-green-400">Pt ${i + 1} ➔ Pt ${j + 1}:</span> ${distM.toFixed(2)}m</div>`;
+                listaMedidas.innerHTML += `<div><span class="font-bold text-green-400">Pt ${i + 1} ➔ Pt ${j + 1}:</span> ${distMm} mm</div>`;
             }
             painelResultado.classList.remove('hidden');
         }
 
-        // ==========================================
-        // RENDERIZAÇÃO
-        // ==========================================
         function desenharTudo() {
             if (canvas.width === 0) return;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -510,14 +546,14 @@
                 });
             }
 
-            // 3. Medidas Retificadas
+            // 3. Medidas em mm
             if (estadoEtapa === 'FINALIZADO') {
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 infoLados.forEach(l => {
                     const mx = (l.p1.x + l.p2.x) / 2;
                     const my = (l.p1.y + l.p2.y) / 2;
-                    const txt = l.medida + 'm';
+                    const txt = l.medida + ' mm';
 
                     ctx.font = `bold ${fontTam}px Arial`;
                     const tw = ctx.measureText(txt).width;
@@ -534,7 +570,7 @@
             const doc = new jsPDF();
             doc.setFont("helvetica", "bold");
             doc.setFontSize(20);
-            doc.text("Medição de Tapete (Gabarito A4)", 105, 20, null, null, "center");
+            doc.text("Medição de Tapete (mm)", 105, 20, null, null, "center");
 
             const maxW = 1600;
             const scale = canvas.width > maxW ? maxW / canvas.width : 1;
@@ -556,18 +592,18 @@
             posY += 12;
             doc.setFontSize(12);
             doc.setTextColor(0, 0, 0);
-            doc.text("Medidas Reais dos Lados:", 20, posY);
+            doc.text("Medidas Reais dos Lados (em mm):", 20, posY);
             posY += 8;
             doc.setFont("helvetica", "normal");
             infoLados.forEach(l => {
-                doc.text(`• Lado ${l.num1} ao ${l.num2}: ${l.medida} metros`, 25, posY);
+                doc.text(`• Lado ${l.num1} ao ${l.num2}: ${l.medida} mm`, 25, posY);
                 posY += 7;
             });
 
-            doc.save('Medicao-Tapete-A4.pdf');
+            doc.save('Medicao-Tapete-mm.pdf');
         });
 
-        function resetar() {
+        function limparMarcacoes() {
             pontosA4 = [];
             pontosTapete = [];
             infoLados = [];
@@ -582,10 +618,19 @@
             btnAcaoPrincipal.classList.remove('hidden');
             btnAcaoPrincipal.className = "flex-1 bg-red-600 active:bg-red-500 text-white py-3 rounded-xl font-bold shadow-lg text-sm";
             btnAcaoPrincipal.innerText = "1º Marcar Folha A4 (0/4)";
-            instrucoes.innerText = "Toque nos 4 cantos da Folha A4 em ordem horária.";
+            instrucoes.innerText = "Toque nos 4 cantos da Folha A4 em ordem contínua.";
             ctx.clearRect(0, 0, canvas.width, canvas.height);
         }
-        btnReiniciar.addEventListener('click', resetar);
+
+        btnLimpar.addEventListener('click', limparMarcacoes);
+
+        // Novo Projeto: reseta tudo e retorna à tela inicial de captura
+        btnNovoProjeto.addEventListener('click', () => {
+            limparMarcacoes();
+            inputFoto.value = '';
+            telaFoto.classList.replace('flex', 'hidden');
+            telaCamera.classList.replace('hidden', 'flex');
+        });
     </script>
 </body>
 </html>
