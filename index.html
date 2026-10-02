@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Medidor de Tapetes</title>
+    <title>Medidor de Tapetes com Homografia</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
@@ -14,80 +14,82 @@
         }
     </style>
 </head>
-<body class="bg-gray-900 text-white min-h-screen flex flex-col p-4 font-sans overflow-x-hidden select-none">
+<body class="bg-gray-900 text-white min-h-screen flex flex-col p-4 font-sans select-none">
 
-    <div class="w-full max-w-md mx-auto pt-2 pb-4 border-b border-gray-800 mb-4 text-center shrink-0">
+    <div class="w-full max-w-md mx-auto pt-2 pb-3 border-b border-gray-800 text-center shrink-0">
         <h1 class="text-2xl font-bold text-blue-400">Medidor de Tapetes</h1>
-        <p class="text-sm text-gray-400 mt-1 font-medium" id="instrucoes">Coloque um cartão de crédito ao lado e tire a foto</p>
+        <p class="text-xs text-gray-400 mt-1 font-medium" id="instrucoes">Carregue a foto com o cartão ao lado do tapete</p>
     </div>
 
     <!-- Tela 1: Câmera -->
     <div id="tela-camera" class="flex flex-col items-center justify-center flex-1 w-full max-w-md mx-auto mt-10">
         <label class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-5 px-8 rounded-2xl shadow-lg cursor-pointer w-full text-center transition-all flex items-center justify-center gap-3">
-            <span class="text-xl">📸</span>
-            <span class="text-lg">Abrir Câmera / Carregar Foto</span>
+            <span class="text-2xl">📸</span>
+            <span class="text-lg">Tirar / Carregar Foto</span>
             <input type="file" accept="image/*" capture="environment" id="inputFoto" class="hidden">
         </label>
     </div>
 
-    <!-- Tela 2: Foto e Edição -->
+    <!-- Tela 2: Edição -->
     <div id="tela-foto" class="hidden flex-col items-center w-full max-w-md mx-auto flex-1">
         
-        <div class="flex items-center gap-3 mb-3 w-full bg-gray-800 p-3 rounded-xl shadow-md border border-gray-700 shrink-0">
-            <span class="text-xl">🔍</span>
+        <!-- Barra de Controle de Zoom e Modo -->
+        <div class="flex items-center gap-3 my-2 w-full bg-gray-800 p-2.5 rounded-xl border border-gray-700 shrink-0">
+            <span class="text-lg">🔍</span>
             <input type="range" id="sliderZoom" min="100" max="800" step="10" value="100" class="flex-1 h-2 bg-blue-600 rounded-lg appearance-none cursor-pointer">
-            <span id="zoomValor" class="text-sm font-bold w-14 text-right text-blue-400">100%</span>
+            <span id="zoomValor" class="text-xs font-bold w-12 text-right text-blue-400">100%</span>
         </div>
 
-        <!-- Container de rolagem e canvas -->
-        <div id="containerScroll" class="w-full h-[55vh] max-h-[460px] bg-black rounded-lg overflow-auto border-2 border-gray-700 shadow-2xl relative mb-4">
+        <!-- Seletor de Modo: Navegação vs Marcação -->
+        <div class="grid grid-cols-2 gap-2 w-full mb-2 shrink-0">
+            <button id="btnModoPan" class="py-2.5 px-3 rounded-xl font-bold text-sm bg-blue-600 border border-blue-400 flex items-center justify-center gap-2">
+                <span>✋</span> Mover Foto
+            </button>
+            <button id="btnModoMarcar" class="py-2.5 px-3 rounded-xl font-bold text-sm bg-gray-800 border border-gray-700 text-gray-300 flex items-center justify-center gap-2">
+                <span>🎯</span> Inserir Ponto
+            </button>
+        </div>
+
+        <!-- Viewport da Imagem -->
+        <div id="containerScroll" class="w-full h-[50vh] max-h-[440px] bg-black rounded-lg overflow-auto border-2 border-gray-700 shadow-2xl relative mb-3 touch-pan-x touch-pan-y">
             <div id="containerImagem" class="relative w-full origin-top-left">
                 <img id="imagemCarregada" class="w-full h-auto block pointer-events-none pixelated" alt="Foto">
-                <canvas id="camadaDesenho" class="absolute top-0 left-0 w-full h-full cursor-crosshair"></canvas>
+                <canvas id="camadaDesenho" class="absolute top-0 left-0 w-full h-full"></canvas>
             </div>
             
-            <!-- Lupa Cirúrgica com Mira -->
-            <div id="lupaCirurgica" class="hidden absolute top-2 right-2 w-32 h-32 rounded-full border-4 border-white shadow-2xl overflow-hidden bg-black z-30 pointer-events-none">
-                <canvas id="canvasLupa" width="128" height="128" class="w-full h-full block pixelated"></canvas>
-                <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div class="w-full h-[1px] bg-red-500 opacity-80 absolute"></div>
-                    <div class="h-full w-[1px] bg-red-500 opacity-80 absolute"></div>
-                    <div class="w-2 h-2 rounded-full border border-yellow-300"></div>
+            <!-- Lupa Cirúrgica -->
+            <div id="lupaCirurgica" class="hidden absolute top-2 right-2 w-28 h-28 rounded-full border-2 border-white shadow-2xl overflow-hidden bg-black z-30 pointer-events-none">
+                <canvas id="canvasLupa" width="112" height="112" class="w-full h-full block pixelated"></canvas>
+                <div class="absolute inset-0 flex items-center justify-center">
+                    <div class="w-full h-[1px] bg-red-500 opacity-90 absolute"></div>
+                    <div class="h-full w-[1px] bg-red-500 opacity-90 absolute"></div>
+                    <div class="w-2.5 h-2.5 rounded-full border border-yellow-300"></div>
                 </div>
             </div>
         </div>
 
-        <!-- Painel de Resultados -->
-        <div id="painelResultado" class="hidden w-full bg-green-900 border-2 border-green-500 rounded-xl p-4 mb-4 text-center shadow-lg">
-            <h2 class="text-green-300 font-bold text-sm uppercase tracking-wide">Área Total</h2>
-            <p id="valorArea" class="text-3xl font-extrabold text-white mt-1 mb-2">0.00 m²</p>
-            <div id="listaMedidas" class="text-sm text-gray-200 grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-green-700 text-left pl-2"></div>
+        <!-- Resultados -->
+        <div id="painelResultado" class="hidden w-full bg-green-950 border border-green-500 rounded-xl p-3 mb-3 text-center shadow-lg">
+            <h2 class="text-green-300 font-bold text-xs uppercase tracking-wide">Área com Correção de Perspectiva</h2>
+            <p id="valorArea" class="text-3xl font-black text-white my-1">0.00 m²</p>
+            <div id="listaMedidas" class="text-xs text-gray-200 grid grid-cols-2 gap-1.5 mt-2 pt-2 border-t border-green-800 text-left"></div>
         </div>
 
-        <!-- Botões de Ação -->
+        <!-- Ações do Fluxo -->
         <div class="flex flex-wrap gap-2 w-full shrink-0 pb-4">
-            <button id="btnTirarOutra" class="flex-1 min-w-[130px] bg-gray-700 active:bg-gray-600 text-white py-3 rounded-xl font-semibold transition-colors">
-                Nova Foto
+            <button id="btnDesfazer" class="hidden bg-gray-700 active:bg-gray-600 text-white px-4 py-3 rounded-xl font-bold text-sm">
+                ↩ Desfazer
             </button>
-            <button id="btnDesfazer" class="hidden bg-gray-600 active:bg-gray-500 text-white px-4 py-3 rounded-xl font-bold transition-colors">
-                ↩ Voltar
+            <button id="btnAcaoPrincipal" class="flex-1 bg-red-600 active:bg-red-500 text-white py-3 rounded-xl font-bold shadow-lg text-sm">
+                1º Marcar Cartão (0/4)
             </button>
-            <button id="btnDetectarCartao" class="flex-1 min-w-[130px] bg-red-600 active:bg-red-500 text-white py-3 rounded-xl font-bold shadow-lg transition-colors">
-                1º Auto-Detectar Cartão
+            <button id="btnCalcular" class="hidden flex-1 bg-green-600 active:bg-green-500 text-white py-3 rounded-xl font-bold shadow-lg text-sm">
+                Calcular Medidas
             </button>
-            <button id="btnConfirmarCartao" class="hidden flex-1 min-w-[130px] bg-yellow-600 active:bg-yellow-500 text-white py-3 rounded-xl font-bold shadow-lg transition-colors">
-                Confirmar 4 Cantos
-            </button>
-            <button id="btnMarcarTapete" class="hidden flex-1 min-w-[130px] bg-blue-600 active:bg-blue-500 text-white py-3 rounded-xl font-bold shadow-lg transition-colors">
-                2º Marcar Tapete
-            </button>
-            <button id="btnFinalizar" class="hidden flex-1 min-w-[130px] bg-green-600 active:bg-green-500 text-white py-3 rounded-xl font-bold shadow-lg transition-colors">
-                Finalizar e Calcular
-            </button>
-            <button id="btnPDF" class="hidden flex-1 min-w-[130px] bg-red-600 active:bg-red-500 text-white py-3 rounded-xl font-bold shadow-lg transition-colors flex items-center justify-center gap-2">
+            <button id="btnPDF" class="hidden flex-1 bg-red-700 active:bg-red-600 text-white py-3 rounded-xl font-bold shadow-lg text-sm flex items-center justify-center gap-2">
                 <span>📄</span> Gerar PDF
             </button>
-            <button id="btnLimpar" class="hidden flex-1 min-w-[130px] bg-gray-700 active:bg-gray-600 text-white py-3 rounded-xl font-bold shadow-lg transition-colors">
+            <button id="btnReiniciar" class="bg-gray-800 text-gray-300 px-3 py-3 rounded-xl font-semibold text-xs border border-gray-700">
                 Limpar
             </button>
         </div>
@@ -104,99 +106,78 @@
         const containerImagem = document.getElementById('containerImagem');
         const containerScroll = document.getElementById('containerScroll');
         
+        const btnModoPan = document.getElementById('btnModoPan');
+        const btnModoMarcar = document.getElementById('btnModoMarcar');
+        const btnAcaoPrincipal = document.getElementById('btnAcaoPrincipal');
+        const btnCalcular = document.getElementById('btnCalcular');
+        const btnDesfazer = document.getElementById('btnDesfazer');
+        const btnPDF = document.getElementById('btnPDF');
+        const btnReiniciar = document.getElementById('btnReiniciar');
+
         const lupaCirurgica = document.getElementById('lupaCirurgica');
         const canvasLupa = document.getElementById('canvasLupa');
         const ctxLupa = canvasLupa.getContext('2d');
-        
-        const btnTirarOutra = document.getElementById('btnTirarOutra');
-        const btnDesfazer = document.getElementById('btnDesfazer');
-        const btnDetectarCartao = document.getElementById('btnDetectarCartao');
-        const btnConfirmarCartao = document.getElementById('btnConfirmarCartao');
-        const btnMarcarTapete = document.getElementById('btnMarcarTapete');
-        const btnFinalizar = document.getElementById('btnFinalizar');
-        const btnLimpar = document.getElementById('btnLimpar');
-        const btnPDF = document.getElementById('btnPDF');
-        
+        const canvas = document.getElementById('camadaDesenho');
+        const ctx = canvas.getContext('2d');
+        const instrucoes = document.getElementById('instrucoes');
         const painelResultado = document.getElementById('painelResultado');
         const valorArea = document.getElementById('valorArea');
         const listaMedidas = document.getElementById('listaMedidas');
 
-        const canvas = document.getElementById('camadaDesenho');
-        const ctx = canvas.getContext('2d');
-        const instrucoes = document.getElementById('instrucoes');
-
-        let pontosCartao = [];
+        // Estado da aplicação
+        let estadoEtapa = 'CARTAO'; // 'CARTAO', 'TAPETE', 'FINALIZADO'
+        let modoInteracao = 'PAN';  // 'PAN' (arrastar) ou 'MARCAR' (mira)
+        let pontosCartao = [];      // 4 cantos em sequência horária: TL, TR, BR, BL
         let pontosTapete = [];
-        let modoAtual = null; 
-        let tapeteFinalizado = false;
-        let indicePontoArrastando = -1;
-        
-        const AREA_CARTAO_CM2 = 46.224;
-        let cmPorPixelGlobal = 0;
         let infoLados = [];
+        let pontoArrastando = null;
+        let H_matrix = null;        // Matriz de Homografia 3x3
 
-        function travarScroll(travar) {
-            if (travar) {
-                containerScroll.style.overflow = 'hidden';
-                containerScroll.style.touchAction = 'none';
+        // Cartão de crédito ISO ID-1 em metros
+        const LARGURA_CARTAO_M = 0.08560; // 85.60 mm
+        const ALTURA_CARTAO_M = 0.05398;  // 53.98 mm
+
+        function alternarModoInteracao(novoModo) {
+            modoInteracao = novoModo;
+            if (novoModo === 'PAN') {
+                btnModoPan.className = "py-2.5 px-3 rounded-xl font-bold text-sm bg-blue-600 border border-blue-400 text-white flex items-center justify-center gap-2";
+                btnModoMarcar.className = "py-2.5 px-3 rounded-xl font-bold text-sm bg-gray-800 border border-gray-700 text-gray-300 flex items-center justify-center gap-2";
+                containerScroll.style.overflow = "auto";
+                containerScroll.style.touchAction = "pan-x pan-y";
             } else {
-                containerScroll.style.overflow = 'auto';
-                containerScroll.style.touchAction = 'pan-x pan-y';
+                btnModoMarcar.className = "py-2.5 px-3 rounded-xl font-bold text-sm bg-blue-600 border border-blue-400 text-white flex items-center justify-center gap-2";
+                btnModoPan.className = "py-2.5 px-3 rounded-xl font-bold text-sm bg-gray-800 border border-gray-700 text-gray-300 flex items-center justify-center gap-2";
+                containerScroll.style.overflow = "hidden";
+                containerScroll.style.touchAction = "none";
             }
         }
-
-        // Centraliza a rolagem exatamente em coordenadas reais da foto
-        function centralizarNoPontoReal(pxReal, pyReal) {
-            if (!imagemCarregada.naturalWidth) return;
-            const proporcao = containerImagem.offsetWidth / imagemCarregada.naturalWidth;
-            const xTela = pxReal * proporcao;
-            const yTela = pyReal * proporcao;
-
-            containerScroll.scrollLeft = xTela - (containerScroll.clientWidth / 2);
-            containerScroll.scrollTop = yTela - (containerScroll.clientHeight / 2);
-        }
-
-        function obterCentroCartao() {
-            if (pontosCartao.length === 0) return null;
-            let sx = 0, sy = 0;
-            pontosCartao.forEach(p => { sx += p.x; sy += p.y; });
-            return { x: sx / pontosCartao.length, y: sy / pontosCartao.length };
-        }
+        btnModoPan.addEventListener('click', () => alternarModoInteracao('PAN'));
+        btnModoMarcar.addEventListener('click', () => alternarModoInteracao('MARCAR'));
 
         function atualizarZoom() {
             const zoom = sliderZoom.value;
             zoomValor.innerText = zoom + '%';
             containerImagem.style.width = zoom + '%';
-
-            // Se o cartão já existe, mantém ele centralizado durante a variação do zoom
-            const centro = obterCentroCartao();
-            if (centro) {
-                requestAnimationFrame(() => centralizarNoPontoReal(centro.x, centro.y));
-            }
             requestAnimationFrame(desenharTudo);
         }
         sliderZoom.addEventListener('input', atualizarZoom);
 
-        inputFoto.addEventListener('change', function(event) {
-            const arquivo = event.target.files[0];
-            if (arquivo) {
+        inputFoto.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
                 if (imagemCarregada.src && imagemCarregada.src.startsWith('blob:')) {
                     URL.revokeObjectURL(imagemCarregada.src);
                 }
-                imagemCarregada.src = URL.createObjectURL(arquivo);
+                imagemCarregada.src = URL.createObjectURL(file);
             }
         });
 
-        imagemCarregada.onload = function() {
-            telaCamera.classList.add('hidden');
-            telaCamera.classList.remove('flex');
-            telaFoto.classList.remove('hidden');
-            telaFoto.classList.add('flex');
-            
+        imagemCarregada.onload = () => {
+            telaCamera.classList.replace('flex', 'hidden');
+            telaFoto.classList.replace('hidden', 'flex');
             sliderZoom.value = 100;
             atualizarZoom();
-            resetarMarcacoes();
-            
+            resetar();
             setTimeout(() => {
                 canvas.width = imagemCarregada.naturalWidth;
                 canvas.height = imagemCarregada.naturalHeight;
@@ -204,539 +185,402 @@
             }, 80);
         };
 
-        function obterCoordenadasReais(clientX, clientY) {
+        function obterCoordReal(clientX, clientY) {
             const rect = canvas.getBoundingClientRect();
-            const scaleX = canvas.width / rect.width;
-            const scaleY = canvas.height / rect.height;
             return {
-                x: (clientX - rect.left) * scaleX,
-                y: (clientY - rect.top) * scaleY
+                x: (clientX - rect.left) * (canvas.width / rect.width),
+                y: (clientY - rect.top) * (canvas.height / rect.height)
             };
         }
 
-        function atualizarLupa(coord) {
-            if (!coord || !imagemCarregada.naturalWidth) return;
+        function atualizarLupa(pt) {
+            if (!pt) return;
             lupaCirurgica.classList.remove('hidden');
-            
-            const tamLupa = 128;
-            const recorteTam = 36;
-            
-            ctxLupa.clearRect(0, 0, tamLupa, tamLupa);
+            const tam = 112;
+            const recorte = 36;
+            ctxLupa.clearRect(0, 0, tam, tam);
             ctxLupa.imageSmoothingEnabled = false;
-            
-            ctxLupa.drawImage(
-                imagemCarregada,
-                coord.x - (recorteTam / 2),
-                coord.y - (recorteTam / 2),
-                recorteTam,
-                recorteTam,
-                0,
-                0,
-                tamLupa,
-                tamLupa
-            );
+            ctxLupa.drawImage(imagemCarregada, pt.x - recorte/2, pt.y - recorte/2, recorte, recorte, 0, 0, tam, tam);
         }
+        function esconderLupa() { lupaCirurgica.classList.add('hidden'); }
 
-        function esconderLupa() {
-            lupaCirurgica.classList.add('hidden');
-        }
-
-        function autoDetectarCartaoNoPonto(cx, cy) {
-            const wFoto = imagemCarregada.naturalWidth;
-            const hFoto = imagemCarregada.naturalHeight;
-            
-            const raioBusca = Math.round(Math.min(wFoto, hFoto) * 0.18);
-            const x0 = Math.max(0, Math.round(cx - raioBusca));
-            const y0 = Math.max(0, Math.round(cy - raioBusca));
-            const x1 = Math.min(wFoto, Math.round(cx + raioBusca));
-            const y1 = Math.min(hFoto, Math.round(cy + raioBusca));
-            const bw = x1 - x0;
-            const bh = y1 - y0;
-
-            const cTemp = document.createElement('canvas');
-            cTemp.width = bw;
-            cTemp.height = bh;
-            const ctxT = cTemp.getContext('2d');
-            ctxT.drawImage(imagemCarregada, x0, y0, bw, bh, 0, 0, bw, bh);
-            
-            const imgData = ctxT.getImageData(0, 0, bw, bh);
-            const data = imgData.data;
-
-            const cinza = new Uint8Array(bw * bh);
-            for (let i = 0; i < data.length; i += 4) {
-                cinza[i / 4] = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
-            }
-
-            const edges = [];
-            const limiarSobel = 60;
-            for (let y = 2; y < bh - 2; y += 2) {
-                for (let x = 2; x < bw - 2; x += 2) {
-                    const idx = y * bw + x;
-                    const gx = (-cinza[idx - bw - 1] + cinza[idx - bw + 1]) +
-                               (-2 * cinza[idx - 1] + 2 * cinza[idx + 1]) +
-                               (-cinza[idx + bw - 1] + cinza[idx + bw + 1]);
-                    const gy = (-cinza[idx - bw - 1] - 2 * cinza[idx - bw] - cinza[idx - bw + 1]) +
-                               (cinza[idx + bw - 1] + 2 * cinza[idx + bw] + cinza[idx + bw + 1]);
-                    const mag = Math.hypot(gx, gy);
-                    if (mag > limiarSobel) {
-                        edges.push({ x: x + x0, y: y + y0 });
-                    }
-                }
-            }
-
-            if (edges.length < 20) {
-                const wPadrao = raioBusca * 0.7;
-                const hPadrao = wPadrao * (53.98 / 85.6);
-                return [
-                    { x: cx - wPadrao / 2, y: cy - hPadrao / 2 },
-                    { x: cx + wPadrao / 2, y: cy - hPadrao / 2 },
-                    { x: cx + wPadrao / 2, y: cy + hPadrao / 2 },
-                    { x: cx - wPadrao / 2, y: cy + hPadrao / 2 }
-                ];
-            }
-
-            let tl = edges[0], tr = edges[0], br = edges[0], bl = edges[0];
-            let minSum = Infinity, maxSum = -Infinity, minDiff = Infinity, maxDiff = -Infinity;
-
-            for (const p of edges) {
-                const s = p.x + p.y;
-                const d = p.x - p.y;
-                if (s < minSum) { minSum = s; tl = p; }
-                if (s > maxSum) { maxSum = s; br = p; }
-                if (d > maxDiff) { maxDiff = d; tr = p; }
-                if (d < minDiff) { minDiff = d; bl = p; }
-            }
-
-            return [tl, tr, br, bl];
-        }
-
-        function pontoMaisProximo(pt, lista, margemPx = 45) {
+        // Achar ponto existente para arrastar ajuste fino
+        function encontrarPontoProximo(pt, lista, raioMax = 40) {
             const rect = canvas.getBoundingClientRect();
             const escala = canvas.width / rect.width;
-            const raioMax = margemPx * escala;
-            
             for (let i = 0; i < lista.length; i++) {
-                if (Math.hypot(lista[i].x - pt.x, lista[i].y - pt.y) <= raioMax) {
+                if (Math.hypot(lista[i].x - pt.x, lista[i].y - pt.y) <= (raioMax * escala)) {
                     return i;
                 }
             }
             return -1;
         }
 
-        function iniciarInteracao(clientX, clientY) {
-            const pt = obterCoordenadasReais(clientX, clientY);
+        function lidarInicio(clientX, clientY) {
+            const pt = obterCoordReal(clientX, clientY);
 
-            if (modoAtual === 'ajustar_cartao') {
-                indicePontoArrastando = pontoMaisProximo(pt, pontosCartao, 55);
-                if (indicePontoArrastando !== -1) {
-                    atualizarLupa(pontosCartao[indicePontoArrastando]);
+            // 1. Tentar pegar ponto existente para ajuste
+            let idx = encontrarPontoProximo(pt, pontosCartao);
+            if (idx !== -1) {
+                pontoArrastando = { lista: pontosCartao, idx };
+                atualizarLupa(pontosCartao[idx]);
+                return;
+            }
+            idx = encontrarPontoProximo(pt, pontosTapete);
+            if (idx !== -1) {
+                pontoArrastando = { lista: pontosTapete, idx };
+                atualizarLupa(pontosTapete[idx]);
+                return;
+            }
+
+            // 2. Se estiver em modo MARCAR, insere ponto novo
+            if (modoInteracao === 'MARCAR') {
+                if (estadoEtapa === 'CARTAO' && pontosCartao.length < 4) {
+                    pontosCartao.push(pt);
+                    atualizarFluxoCartao();
+                } else if (estadoEtapa === 'TAPETE') {
+                    pontosTapete.push(pt);
+                    instrucoes.innerText = `${pontosTapete.length} pontos marcados no tapete.`;
+                    if (pontosTapete.length >= 3) btnCalcular.classList.remove('hidden');
                 }
-            } else if (modoAtual === 'detectar_cartao') {
-                pontosCartao = autoDetectarCartaoNoPonto(pt.x, pt.y);
-                modoAtual = 'ajustar_cartao';
-
-                // Aplica Zoom de 400x focado exatamente no cartão detectado
-                sliderZoom.value = 400;
-                zoomValor.innerText = '400%';
-                containerImagem.style.width = '400%';
-                
-                // Centraliza primeiro com o scroll liberado e depois trava estático
-                travarScroll(false);
-                requestAnimationFrame(() => {
-                    const centro = obterCentroCartao();
-                    if (centro) centralizarNoPontoReal(centro.x, centro.y);
-                    travarScroll(true);
-                });
-
-                btnDetectarCartao.classList.add('hidden');
-                btnConfirmarCartao.classList.remove('hidden');
                 btnDesfazer.classList.remove('hidden');
-                instrucoes.innerText = "Cartão focado! Ajuste os cantos e clique em 'Confirmar'.";
-                instrucoes.classList.replace('text-red-400', 'text-yellow-400');
-                desenharTudo();
-            } else if (modoAtual === 'tapete') {
-                pontosTapete.push(pt);
-                btnDesfazer.classList.remove('hidden');
-                instrucoes.innerText = `${pontosTapete.length} pontos marcados no tapete.`;
                 desenharTudo();
             }
         }
 
-        function moverInteracao(clientX, clientY) {
-            if (modoAtual === 'ajustar_cartao' && indicePontoArrastando !== -1) {
-                const pt = obterCoordenadasReais(clientX, clientY);
-                pontosCartao[indicePontoArrastando] = pt;
+        function lidarMovimento(clientX, clientY) {
+            if (pontoArrastando) {
+                const pt = obterCoordReal(clientX, clientY);
+                pontoArrastando.lista[pontoArrastando.idx] = pt;
                 atualizarLupa(pt);
                 desenharTudo();
+                if (estadoEtapa === 'FINALIZADO') calcularMedidasComHomografia();
             }
         }
 
-        function finalizarInteracao() {
-            indicePontoArrastando = -1;
+        function lidarFim() {
+            pontoArrastando = null;
             esconderLupa();
         }
 
         canvas.addEventListener('touchstart', (e) => {
             const t = e.touches[0];
-            iniciarInteracao(t.clientX, t.clientY);
-            if (modoAtual === 'ajustar_cartao') {
-                e.preventDefault();
-            }
+            lidarInicio(t.clientX, t.clientY);
+            if (modoInteracao === 'MARCAR' || pontoArrastando) e.preventDefault();
         }, { passive: false });
 
         canvas.addEventListener('touchmove', (e) => {
             const t = e.touches[0];
-            moverInteracao(t.clientX, t.clientY);
-            if (modoAtual === 'ajustar_cartao') {
-                e.preventDefault();
-            }
+            lidarMovimento(t.clientX, t.clientY);
+            if (modoInteracao === 'MARCAR' || pontoArrastando) e.preventDefault();
         }, { passive: false });
 
-        canvas.addEventListener('touchend', finalizarInteracao);
+        canvas.addEventListener('touchend', lidarFim);
+        canvas.addEventListener('mousedown', (e) => lidarInicio(e.clientX, e.clientY));
+        canvas.addEventListener('mousemove', (e) => lidarMovimento(e.clientX, e.clientY));
+        window.addEventListener('mouseup', lidarFim);
 
-        canvas.addEventListener('mousedown', (e) => iniciarInteracao(e.clientX, e.clientY));
-        canvas.addEventListener('mousemove', (e) => moverInteracao(e.clientX, e.clientY));
-        window.addEventListener('mouseup', finalizarInteracao);
+        function atualizarFluxoCartao() {
+            const qtd = pontosCartao.length;
+            btnAcaoPrincipal.innerText = `1º Marcar Cartão (${qtd}/4)`;
+            if (qtd === 0) {
+                instrucoes.innerText = "Toque nos 4 cantos do cartão em ordem horária (C1 topo-esq, C2 topo-dir, etc).";
+            } else if (qtd < 4) {
+                instrucoes.innerText = `Marque o canto C${qtd + 1} do cartão.`;
+            } else {
+                instrucoes.innerText = "Cartão completo! Calibre a perspectiva clicando em '2º Marcar Tapete'.";
+                btnAcaoPrincipal.className = "flex-1 bg-blue-600 active:bg-blue-500 text-white py-3 rounded-xl font-bold shadow-lg text-sm";
+                btnAcaoPrincipal.innerText = "2º Marcar Tapete";
+            }
+        }
 
-        btnDetectarCartao.addEventListener('click', function() {
-            modoAtual = 'detectar_cartao';
-            pontosCartao = [];
-            btnDetectarCartao.classList.add('hidden');
-            btnTirarOutra.classList.add('hidden');
-            btnLimpar.classList.remove('hidden');
-            instrucoes.innerText = "Dê 1 toque no centro do cartão de crédito.";
-            instrucoes.classList.add('text-red-400');
-            instrucoes.classList.remove('text-gray-400', 'text-yellow-400', 'text-green-400');
+        btnAcaoPrincipal.addEventListener('click', () => {
+            if (estadoEtapa === 'CARTAO') {
+                if (pontosCartao.length !== 4) {
+                    alternarModoInteracao('MARCAR');
+                    return;
+                }
+                // Ordenar pontos do cartão no sentido horário garantido
+                pontosCartao = ordenarQuatroCantos(pontosCartao);
+                H_matrix = calcularMatrizHomografia(pontosCartao, LARGURA_CARTAO_M, ALTURA_CARTAO_M);
+                
+                estadoEtapa = 'TAPETE';
+                btnAcaoPrincipal.classList.add('hidden');
+                btnCalcular.classList.remove('hidden');
+                instrucoes.innerText = "Contorne o tapete inserindo os pontos dos cantos.";
+                alternarModoInteracao('MARCAR');
+                desenharTudo();
+            }
         });
 
-        btnConfirmarCartao.addEventListener('click', function() {
-            modoAtual = null;
-            travarScroll(false);
-            
-            // Retorna o zoom para visão geral facilitar a marcação do tapete
-            sliderZoom.value = 100;
-            zoomValor.innerText = '100%';
-            containerImagem.style.width = '100%';
-            containerScroll.scrollLeft = 0;
-            containerScroll.scrollTop = 0;
-
-            btnConfirmarCartao.classList.add('hidden');
-            btnMarcarTapete.classList.remove('hidden');
-            instrucoes.innerText = "Cartão calibrado com 4 cantos! Clique em '2º Marcar Tapete'.";
-            instrucoes.classList.replace('text-yellow-400', 'text-green-400');
-            desenharTudo();
-        });
-
-        btnMarcarTapete.addEventListener('click', function() {
-            modoAtual = 'tapete';
-            tapeteFinalizado = false;
-            travarScroll(false);
-            btnMarcarTapete.classList.add('hidden');
-            btnFinalizar.classList.remove('hidden');
-            btnDesfazer.classList.remove('hidden');
-            instrucoes.innerText = "Marque os cantos do tapete contornando todo o perímetro.";
-            instrucoes.classList.remove('text-red-400', 'text-green-400');
-            instrucoes.classList.add('text-yellow-400');
-        });
-
-        btnDesfazer.addEventListener('click', function() {
-            if (modoAtual === 'ajustar_cartao') {
-                pontosCartao = [];
-                modoAtual = 'detectar_cartao';
-                travarScroll(false);
-                btnConfirmarCartao.classList.add('hidden');
-                btnDetectarCartao.classList.remove('hidden');
-                instrucoes.innerText = "Dê 1 toque no centro do cartão.";
-                instrucoes.classList.replace('text-yellow-400', 'text-red-400');
-            } else if (modoAtual === 'tapete' && pontosTapete.length > 0) {
+        btnDesfazer.addEventListener('click', () => {
+            if (estadoEtapa === 'CARTAO' && pontosCartao.length > 0) {
+                pontosCartao.pop();
+                atualizarFluxoCartao();
+            } else if (estadoEtapa === 'TAPETE' && pontosTapete.length > 0) {
                 pontosTapete.pop();
-                instrucoes.innerText = pontosTapete.length > 0 ? `${pontosTapete.length} pontos no tapete.` : "Marque os cantos do tapete.";
             }
             desenharTudo();
         });
 
-        btnFinalizar.addEventListener('click', function() {
+        btnCalcular.addEventListener('click', () => {
             if (pontosTapete.length < 3) {
                 alert("Marque pelo menos 3 pontos no tapete!");
                 return;
             }
-            modoAtual = null;
-            tapeteFinalizado = true;
-            btnDesfazer.classList.add('hidden');
-            
-            calcularMedidas(); 
-            desenharTudo();
-            
-            btnFinalizar.classList.add('hidden');
-            btnTirarOutra.classList.remove('hidden'); 
+            estadoEtapa = 'FINALIZADO';
+            calcularMedidasComHomografia();
+            alternarModoInteracao('PAN');
+            btnCalcular.classList.add('hidden');
             btnPDF.classList.remove('hidden');
-            
-            instrucoes.innerText = "Cálculo concluído! Gere seu PDF.";
-            instrucoes.classList.remove('text-yellow-400');
-            instrucoes.classList.add('text-green-400');
+            instrucoes.innerText = "Perspectiva corrigida com sucesso! Você pode gerar o PDF.";
+            desenharTudo();
         });
 
-        btnTirarOutra.addEventListener('click', function() {
-            inputFoto.value = '';
-            telaCamera.classList.remove('hidden');
-            telaCamera.classList.add('flex');
-            telaFoto.classList.add('hidden');
-            telaFoto.classList.remove('flex');
-            resetarMarcacoes();
-        });
-
-        btnLimpar.addEventListener('click', resetarMarcacoes);
-
-        function calcularAreaPoligono(pontos) {
-            let area = 0;
-            let j = pontos.length - 1;
-            for (let i = 0; i < pontos.length; i++) {
-                area += (pontos[j].x + pontos[i].x) * (pontos[j].y - pontos[i].y);
-                j = i;
-            }
-            return Math.abs(area / 2);
+        // ==========================================
+        // ÁLGEBRA LINEAR: HOMOGRAFIA PERSPECTIVA REAL
+        // ==========================================
+        function ordenarQuatroCantos(pts) {
+            // Centroide
+            const cx = pts.reduce((a, b) => a + b.x, 0) / 4;
+            const cy = pts.reduce((a, b) => a + b.y, 0) / 4;
+            // Ordenar por ângulo polar
+            return [...pts].sort((a, b) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx));
         }
 
+        // Calcula Matriz 3x3 que mapeia (x_foto, y_foto) para (X_real_metros, Y_real_metros)
+        function calcularMatrizHomografia(srcPts, wReal, hReal) {
+            const dst = [
+                { x: 0, y: 0 },
+                { x: wReal, y: 0 },
+                { x: wReal, y: hReal },
+                { x: 0, y: hReal }
+            ];
+
+            const A = [];
+            for (let i = 0; i < 4; i++) {
+                const xs = srcPts[i].x, ys = srcPts[i].y;
+                const xd = dst[i].x, yd = dst[i].y;
+                A.push([-xs, -ys, -1, 0, 0, 0, xs * xd, ys * xd, xd]);
+                A.push([0, 0, 0, -xs, -ys, -1, xs * yd, ys * yd, yd]);
+            }
+
+            // Eliminação Gauss-Jordan para resolver o sistema
+            for (let i = 0; i < 8; i++) {
+                let maxRow = i;
+                for (let k = i + 1; k < 8; k++) {
+                    if (Math.abs(A[k][i]) > Math.abs(A[maxRow][i])) maxRow = k;
+                }
+                [A[i], A[maxRow]] = [A[maxRow], A[i]];
+
+                for (let k = i + 1; k < 8; k++) {
+                    const c = -A[k][i] / A[i][i];
+                    for (let j = i; j < 9; j++) {
+                        A[k][j] = (i === j) ? 0 : A[k][j] + c * A[i][j];
+                    }
+                }
+            }
+
+            const h = new Array(9);
+            h[8] = 1;
+            for (let i = 7; i >= 0; i--) {
+                let s = -A[i][8];
+                for (let j = i + 1; j < 8; j++) s -= A[i][j] * h[j];
+                h[i] = s / A[i][i];
+            }
+
+            return h;
+        }
+
+        // Projeta ponto da imagem no plano métrico real corrigido
+        function projetarPonto(pt, H) {
+            const x = pt.x, y = pt.y;
+            const w = H[6] * x + H[7] * y + H[8];
+            return {
+                x: (H[0] * x + H[1] * y + H[2]) / w,
+                y: (H[3] * x + H[4] * y + H[5]) / w
+            };
+        }
+
+        function calcularMedidasComHomografia() {
+            if (!H_matrix) H_matrix = calcularMatrizHomografia(pontosCartao, LARGURA_CARTAO_M, ALTURA_CARTAO_M);
+
+            const pontosMetricos = pontosTapete.map(p => projetarPonto(p, H_matrix));
+
+            // Área métrica real (Gauss)
+            let areaM2 = 0;
+            for (let i = 0; i < pontosMetricos.length; i++) {
+                const j = (i + 1) % pontosMetricos.length;
+                areaM2 += (pontosMetricos[i].x * pontosMetricos[j].y) - (pontosMetricos[j].x * pontosMetricos[i].y);
+            }
+            areaM2 = Math.abs(areaM2 / 2);
+            valorArea.innerText = areaM2.toFixed(2) + " m²";
+
+            infoLados = [];
+            listaMedidas.innerHTML = '';
+            for (let i = 0; i < pontosMetricos.length; i++) {
+                const j = (i + 1) % pontosMetricos.length;
+                const distM = Math.hypot(pontosMetricos[j].x - pontosMetricos[i].x, pontosMetricos[j].y - pontosMetricos[i].y);
+                
+                infoLados.push({
+                    p1: pontosTapete[i],
+                    p2: pontosTapete[j],
+                    num1: i + 1,
+                    num2: j + 1,
+                    medida: distM.toFixed(2)
+                });
+
+                listaMedidas.innerHTML += `<div><span class="font-bold text-green-400">Pt ${i + 1} ➔ Pt ${j + 1}:</span> ${distM.toFixed(2)}m</div>`;
+            }
+            painelResultado.classList.remove('hidden');
+        }
+
+        // ==========================================
+        // RENDERIZAÇÃO
+        // ==========================================
         function desenharTudo() {
             if (canvas.width === 0) return;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            const rect = canvas.getBoundingClientRect();
-            const multiplicador = canvas.width / rect.width;
-            
-            const raioPonto = 5 * multiplicador;
-            const espessuraFina = 1.5 * multiplicador;
-            const espessuraGrossa = 3 * multiplicador;
-            const tamanhoFonte = 13 * multiplicador;
-            const paddingTexto = 5 * multiplicador;
+            const mult = canvas.width / canvas.getBoundingClientRect().width;
+            const raio = 4.5 * mult;
+            const espessura = 2.5 * mult;
+            const fontTam = 13 * mult;
 
-            // 1. GABARITO CARTÃO
+            // 1. Cartão de Aferição
             if (pontosCartao.length > 0) {
                 ctx.beginPath();
                 ctx.moveTo(pontosCartao[0].x, pontosCartao[0].y);
-                for (let i = 1; i < pontosCartao.length; i++) {
-                    ctx.lineTo(pontosCartao[i].x, pontosCartao[i].y);
+                for (let i = 1; i < pontosCartao.length; i++) ctx.lineTo(pontosCartao[i].x, pontosCartao[i].y);
+                if (pontosCartao.length === 4) {
+                    ctx.lineTo(pontosCartao[0].x, pontosCartao[0].y);
+                    ctx.fillStyle = 'rgba(239, 68, 68, 0.25)';
+                    ctx.fill();
                 }
-                ctx.lineTo(pontosCartao[0].x, pontosCartao[0].y);
-                ctx.fillStyle = 'rgba(239, 68, 68, 0.25)';
-                ctx.fill();
                 ctx.strokeStyle = '#ef4444';
-                ctx.lineWidth = espessuraGrossa;
+                ctx.lineWidth = espessura;
                 ctx.stroke();
 
                 pontosCartao.forEach((p, idx) => {
                     ctx.beginPath();
-                    ctx.arc(p.x, p.y, raioPonto, 0, 2 * Math.PI); 
-                    ctx.fillStyle = (idx === indicePontoArrastando) ? '#fbbf24' : '#ef4444';
+                    ctx.arc(p.x, p.y, raio, 0, 2 * Math.PI);
+                    ctx.fillStyle = '#ef4444';
                     ctx.fill();
-                    ctx.strokeStyle = 'white';
-                    ctx.lineWidth = espessuraFina;
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 1.5 * mult;
                     ctx.stroke();
 
-                    ctx.fillStyle = '#ef4444';
-                    ctx.font = `bold ${tamanhoFonte}px Arial`;
-                    ctx.fillText(`C${idx + 1}`, p.x + (raioPonto * 1.5), p.y - (raioPonto * 1.5));
+                    ctx.fillStyle = '#f87171';
+                    ctx.font = `bold ${fontTam}px Arial`;
+                    ctx.fillText(`C${idx + 1}`, p.x + raio * 1.5, p.y - raio * 1.5);
                 });
             }
 
-            // 2. TAPETE
+            // 2. Tapete
             if (pontosTapete.length > 0) {
-                if (pontosTapete.length > 1) {
-                    ctx.beginPath();
-                    ctx.moveTo(pontosTapete[0].x, pontosTapete[0].y);
-                    for (let i = 1; i < pontosTapete.length; i++) {
-                        ctx.lineTo(pontosTapete[i].x, pontosTapete[i].y);
-                    }
-                    if (tapeteFinalizado && pontosTapete.length >= 3) {
-                        ctx.lineTo(pontosTapete[0].x, pontosTapete[0].y);
-                        ctx.fillStyle = 'rgba(59, 130, 246, 0.25)';
-                        ctx.fill();
-                    }
-                    ctx.strokeStyle = '#3b82f6';
-                    ctx.lineWidth = espessuraGrossa;
-                    ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(pontosTapete[0].x, pontosTapete[0].y);
+                for (let i = 1; i < pontosTapete.length; i++) ctx.lineTo(pontosTapete[i].x, pontosTapete[i].y);
+                if (estadoEtapa === 'FINALIZADO' && pontosTapete.length >= 3) {
+                    ctx.lineTo(pontosTapete[0].x, pontosTapete[0].y);
+                    ctx.fillStyle = 'rgba(59, 130, 246, 0.25)';
+                    ctx.fill();
                 }
+                ctx.strokeStyle = '#3b82f6';
+                ctx.lineWidth = espessura;
+                ctx.stroke();
 
-                pontosTapete.forEach((p, index) => {
+                pontosTapete.forEach((p, idx) => {
                     ctx.beginPath();
-                    ctx.arc(p.x, p.y, raioPonto, 0, 2 * Math.PI); 
+                    ctx.arc(p.x, p.y, raio, 0, 2 * Math.PI);
                     ctx.fillStyle = '#3b82f6';
                     ctx.fill();
-                    ctx.strokeStyle = 'white';
-                    ctx.lineWidth = espessuraFina;
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 1.5 * mult;
                     ctx.stroke();
-                    
-                    ctx.fillStyle = 'white';
-                    ctx.font = `bold ${tamanhoFonte}px Arial`;
-                    ctx.fillText(index + 1, p.x + (raioPonto * 1.5), p.y - (raioPonto * 1.5));
+
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = `bold ${fontTam}px Arial`;
+                    ctx.fillText(idx + 1, p.x + raio * 1.5, p.y - raio * 1.5);
                 });
             }
 
-            // 3. MEDIDAS DOS LADOS
-            if (tapeteFinalizado && infoLados.length > 0) {
+            // 3. Medidas com Perspectiva Retificada
+            if (estadoEtapa === 'FINALIZADO') {
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                
-                infoLados.forEach(lado => {
-                    let distPx = Math.hypot(lado.ponto2.x - lado.ponto1.x, lado.ponto2.y - lado.ponto1.y);
-                    if (distPx > (40 * multiplicador)) {
-                        let meioX = (lado.ponto1.x + lado.ponto2.x) / 2;
-                        let meioY = (lado.ponto1.y + lado.ponto2.y) / 2;
-                        let texto = lado.medida + 'm';
+                infoLados.forEach(l => {
+                    const mx = (l.p1.x + l.p2.x) / 2;
+                    const my = (l.p1.y + l.p2.y) / 2;
+                    const txt = l.medida + 'm';
 
-                        ctx.font = `bold ${tamanhoFonte}px Arial`;
-                        let textWidth = ctx.measureText(texto).width;
-                        
-                        ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
-                        ctx.fillRect(
-                            meioX - textWidth/2 - paddingTexto, 
-                            meioY - tamanhoFonte * 0.8, 
-                            textWidth + (paddingTexto * 2), 
-                            tamanhoFonte * 1.6
-                        );
-
-                        ctx.fillStyle = '#4ade80';
-                        ctx.fillText(texto, meioX, meioY);
-                    }
+                    ctx.font = `bold ${fontTam}px Arial`;
+                    const tw = ctx.measureText(txt).width;
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+                    ctx.fillRect(mx - tw/2 - 4*mult, my - fontTam*0.7, tw + 8*mult, fontTam * 1.4);
+                    ctx.fillStyle = '#4ade80';
+                    ctx.fillText(txt, mx, my);
                 });
             }
         }
 
-        function calcularMedidas() {
-            const areaCartaoPx = calcularAreaPoligono(pontosCartao);
-            const escalaArea = AREA_CARTAO_CM2 / areaCartaoPx;
-            cmPorPixelGlobal = Math.sqrt(escalaArea);
-
-            const areaTapetePx = calcularAreaPoligono(pontosTapete);
-            let areaEmCm2 = areaTapetePx * escalaArea;
-            let areaEmM2 = areaEmCm2 / 10000;
-            
-            valorArea.innerText = areaEmM2.toFixed(2) + " m²";
-
-            infoLados = [];
-            listaMedidas.innerHTML = ''; 
-            
-            for (let i = 0; i < pontosTapete.length; i++) {
-                let p1 = pontosTapete[i];
-                let p2 = pontosTapete[(i + 1) % pontosTapete.length]; 
-                
-                let numP1 = i + 1;
-                let numP2 = ((i + 1) % pontosTapete.length === 0) ? 1 : i + 2;
-
-                let distPx = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-                let distCm = distPx * cmPorPixelGlobal;
-                let distM = (distCm / 100).toFixed(2);
-
-                infoLados.push({
-                    num1: numP1,
-                    num2: numP2,
-                    medida: distM,
-                    ponto1: p1,
-                    ponto2: p2
-                });
-
-                listaMedidas.innerHTML += `<div><span class="font-bold text-green-400">Pt ${numP1} ➔ Pt ${numP2}:</span> ${distM}m</div>`;
-            }
-
-            painelResultado.classList.remove('hidden');
-        }
-
-        btnPDF.addEventListener('click', function() {
+        btnPDF.addEventListener('click', () => {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
-
-            doc.setFontSize(22);
             doc.setFont("helvetica", "bold");
-            doc.text("Medição de Tapete", 105, 20, null, null, "center");
+            doc.setFontSize(20);
+            doc.text("Medição de Tapete (Perspectiva Corrigida)", 105, 20, null, null, "center");
 
-            const maxWidthPDF = 1600;
-            let scalePDF = 1;
-            if (canvas.width > maxWidthPDF) {
-                scalePDF = maxWidthPDF / canvas.width;
-            }
+            const maxW = 1600;
+            const scale = canvas.width > maxW ? maxW / canvas.width : 1;
+            const cTemp = document.createElement('canvas');
+            cTemp.width = canvas.width * scale;
+            cTemp.height = canvas.height * scale;
+            const cx = cTemp.getContext('2d');
+            cx.drawImage(imagemCarregada, 0, 0, cTemp.width, cTemp.height);
+            cx.drawImage(canvas, 0, 0, cTemp.width, cTemp.height);
 
-            const canvasTemp = document.createElement('canvas');
-            canvasTemp.width = canvas.width * scalePDF;
-            canvasTemp.height = canvas.height * scalePDF;
-            const ctxTemp = canvasTemp.getContext('2d');
-            
-            ctxTemp.drawImage(imagemCarregada, 0, 0, canvasTemp.width, canvasTemp.height);
-            ctxTemp.drawImage(canvas, 0, 0, canvasTemp.width, canvasTemp.height);
+            const imgData = cTemp.toDataURL('image/jpeg', 0.85);
+            doc.addImage(imgData, 'JPEG', 15, 30, 180, (180 * cTemp.height) / cTemp.width);
 
-            const fotoFinal = canvasTemp.toDataURL('image/jpeg', 0.85);
-            
-            const maxLarguraImg = 190;
-            const maxAlturaImg = 140; 
-            const proporcao = canvasTemp.height / canvasTemp.width;
-            
-            let larguraImgPDF = maxLarguraImg;
-            let alturaImgPDF = maxLarguraImg * proporcao;
-
-            if (alturaImgPDF > maxAlturaImg) {
-                alturaImgPDF = maxAlturaImg;
-                larguraImgPDF = maxAlturaImg / proporcao;
-            }
-
-            const margemX = (210 - larguraImgPDF) / 2; 
-            doc.addImage(fotoFinal, 'JPEG', margemX, 30, larguraImgPDF, alturaImgPDF);
-
-            let linhaY = 30 + alturaImgPDF + 20;
+            let posY = 30 + ((180 * cTemp.height) / cTemp.width) + 15;
             doc.setFontSize(16);
-            doc.setTextColor(22, 163, 74); 
-            doc.text(`Área Total do Tapete: ${valorArea.innerText}`, 105, linhaY, null, null, "center");
-            
-            linhaY += 15;
-            doc.setTextColor(0, 0, 0); 
-            doc.setFontSize(14);
-            doc.setFont("helvetica", "bold");
-            doc.text("Medidas de cada lado (Distância entre pontos):", 20, linhaY);
-            
-            linhaY += 10;
+            doc.setTextColor(22, 163, 74);
+            doc.text(`Área Total: ${valorArea.innerText}`, 105, posY, null, null, "center");
+
+            posY += 12;
             doc.setFontSize(12);
+            doc.setTextColor(0, 0, 0);
+            doc.text("Medidas Reais dos Lados:", 20, posY);
+            posY += 8;
             doc.setFont("helvetica", "normal");
-            
-            infoLados.forEach(lado => {
-                doc.text(`• Ponto ${lado.num1} ao Ponto ${lado.num2} :  ${lado.medida} metros`, 25, linhaY);
-                linhaY += 8;
-                if (linhaY > 275) {
-                    doc.addPage();
-                    linhaY = 20;
-                }
+            infoLados.forEach(l => {
+                doc.text(`• Lado ${l.num1} ao ${l.num2}: ${l.medida} metros`, 25, posY);
+                posY += 7;
             });
 
-            doc.setFontSize(10);
-            doc.setTextColor(150, 150, 150);
-            doc.text("Gerado por Medidor de Tapetes Automático", 105, 290, null, null, "center");
-
-            doc.save('Medida-Tapete.pdf');
+            doc.save('Medicao-Tapete-Retificado.pdf');
         });
 
-        function resetarMarcacoes() {
+        function resetar() {
             pontosCartao = [];
             pontosTapete = [];
             infoLados = [];
-            modoAtual = null;
-            tapeteFinalizado = false;
-            indicePontoArrastando = -1;
-            travarScroll(false);
+            H_matrix = null;
+            estadoEtapa = 'CARTAO';
+            alternarModoInteracao('PAN');
             esconderLupa();
-            
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
             painelResultado.classList.add('hidden');
-            
-            btnDetectarCartao.classList.remove('hidden');
-            btnConfirmarCartao.classList.add('hidden');
-            btnTirarOutra.classList.remove('hidden');
-            btnMarcarTapete.classList.add('hidden');
-            btnFinalizar.classList.add('hidden');
+            btnCalcular.classList.add('hidden');
             btnPDF.classList.add('hidden');
-            btnLimpar.classList.add('hidden');
             btnDesfazer.classList.add('hidden');
-            
-            instrucoes.innerText = "Coloque o cartão ao lado e tire a foto.";
-            instrucoes.classList.remove('text-green-400', 'text-yellow-400', 'text-red-400');
-            instrucoes.classList.add('text-gray-400');
+            btnAcaoPrincipal.classList.remove('hidden');
+            btnAcaoPrincipal.className = "flex-1 bg-red-600 active:bg-red-500 text-white py-3 rounded-xl font-bold shadow-lg text-sm";
+            btnAcaoPrincipal.innerText = "1º Marcar Cartão (0/4)";
+            instrucoes.innerText = "Toque nos 4 cantos do cartão em ordem horária.";
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
         }
+        btnReiniciar.addEventListener('click', resetar);
     </script>
 </body>
 </html>
